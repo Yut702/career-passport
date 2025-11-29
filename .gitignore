@@ -137,3 +137,13 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Node.js
+node_modules/
+dist/
+build/
+.next/
+
+# Forge / Hardhat
+contracts/lib/forge-std/artifacts/
+contracts/lib/forge-std/cache/
