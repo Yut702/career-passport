@@ -7,12 +7,44 @@ export default function ZKProof() {
 
   const handleGenerateProof = async () => {
     setProofStatus("generating");
-    // モック: ゼロ知識証明の生成
+    // モック: ゼロ知識証明の生成（仕様に基づいた構造）
     setTimeout(() => {
+      const timestamp = new Date().toISOString();
       setProofData({
-        proof: "0x1234567890abcdef...",
-        publicInputs: ["0xabc", "0xdef"],
-        timestamp: new Date().toISOString(),
+        proof: {
+          type: "BbsBlsSignatureProof2020",
+          created: timestamp,
+          proofPurpose: "assertionMethod",
+          proofValue: "z5F8k" + Math.random().toString(16).substr(2, 60) + "...",
+          verificationMethod: "did:web:gov.example:my-number#key-1",
+          revealedAttributes: ["age", "toeic"],
+          nonce: Math.random().toString(16).substr(2, 32),
+        },
+        publicInputs: {
+          age: 26,
+          ageCondition: ">= 25",
+          toeic: 850,
+          toeicCondition: ">= 800",
+        },
+        hiddenAttributes: {
+          dateOfBirth: "hidden",
+          nationality: "hidden",
+          exactScore: "hidden",
+          testCenter: "hidden",
+        },
+        satisfiedConditions: [
+          {
+            type: "age",
+            condition: ">= 25",
+            satisfied: true,
+          },
+          {
+            type: "toeic",
+            condition: ">= 800",
+            satisfied: true,
+          },
+        ],
+        timestamp: timestamp,
       });
       setProofStatus("success");
     }, 2000);
@@ -21,8 +53,17 @@ export default function ZKProof() {
   const handleVerifyProof = async () => {
     if (!proofData) return;
     setProofStatus("generating");
-    // モック: 証明の検証
+    // モック: 証明の検証（仕様に基づいた構造）
     setTimeout(() => {
+      const verifyResult = {
+        verified: true,
+        conditions: proofData.satisfiedConditions || [],
+        timestamp: proofData.timestamp,
+      };
+      setProofData({
+        ...proofData,
+        verifyResult: verifyResult,
+      });
       setProofStatus("success");
     }, 1000);
   };
@@ -49,9 +90,10 @@ export default function ZKProof() {
               ゼロ知識証明（Zero-Knowledge Proof）を使用することで、以下の情報を公開せずに証明できます：
             </p>
             <ul className="list-disc list-inside space-y-2 ml-4">
-              <li>スタンプの詳細情報（企業名、発行日など）</li>
+              <li>正確な年齢・生年月日</li>
+              <li>正確なTOEICスコア</li>
+              <li>証明書番号や詳細情報</li>
               <li>個人情報</li>
-              <li>ウォレットアドレス</li>
             </ul>
             <p className="mt-4 font-semibold">
               証明したい内容だけを検証者に示し、その他の情報は秘匿したまま証明できます。
@@ -72,15 +114,15 @@ export default function ZKProof() {
               <div className="space-y-3">
                 <label className="flex items-center space-x-3 p-4 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition">
                   <input type="checkbox" className="w-5 h-5 text-indigo-600" defaultChecked />
-                  <span className="text-gray-700">3つ以上のスタンプを所有している</span>
+                  <span className="text-gray-700">年齢が25歳以上である</span>
                 </label>
                 <label className="flex items-center space-x-3 p-4 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition">
                   <input type="checkbox" className="w-5 h-5 text-indigo-600" />
-                  <span className="text-gray-700">特定の企業からスタンプを取得している</span>
+                  <span className="text-gray-700">TOEICスコアが800点以上である</span>
                 </label>
                 <label className="flex items-center space-x-3 p-4 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition">
                   <input type="checkbox" className="w-5 h-5 text-indigo-600" />
-                  <span className="text-gray-700">NFT証明書を所有している</span>
+                  <span className="text-gray-700">特定の資格を所有している</span>
                 </label>
               </div>
             </div>
@@ -120,21 +162,94 @@ export default function ZKProof() {
               {/* 証明データ */}
               <div className="bg-gray-50 rounded-xl p-6">
                 <h3 className="font-bold text-gray-900 mb-3">証明データ</h3>
-                <div className="space-y-2 text-sm">
-                  <div>
-                    <span className="text-gray-600">Proof:</span>
-                    <div className="mt-1 p-3 bg-white rounded-lg font-mono text-xs break-all">
-                      {proofData.proof}
+                <div className="space-y-4 text-sm">
+                  {/* 満たした条件 */}
+                  {proofData.satisfiedConditions && (
+                    <div>
+                      <span className="text-gray-600 font-semibold">満たした条件:</span>
+                      <div className="mt-2 space-y-2">
+                        {proofData.satisfiedConditions.map((cond, idx) => (
+                          <div
+                            key={idx}
+                            className="p-3 bg-green-50 rounded-lg border border-green-200"
+                          >
+                            <span className="text-green-800">
+                              ✅ {cond.type}: {cond.condition}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Public Inputs:</span>
-                    <div className="mt-1 p-3 bg-white rounded-lg font-mono text-xs">
-                      {proofData.publicInputs.join(", ")}
+                  )}
+
+                  {/* 公開情報（開示） */}
+                  {proofData.publicInputs && (
+                    <div>
+                      <span className="text-gray-600 font-semibold">公開情報（開示）:</span>
+                      <div className="mt-2 p-3 bg-white rounded-lg border">
+                        <div className="space-y-1">
+                          {Object.entries(proofData.publicInputs).map(([key, value]) => (
+                            <div key={key} className="text-gray-900">
+                              <span className="font-semibold">{key}:</span> {value}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  )}
+
+                  {/* 非開示情報（秘匿） */}
+                  {proofData.hiddenAttributes && (
+                    <div>
+                      <span className="text-gray-600 font-semibold">非開示情報（秘匿）:</span>
+                      <div className="mt-2 p-3 bg-gray-100 rounded-lg">
+                        <ul className="space-y-1 text-gray-600">
+                          {Object.entries(proofData.hiddenAttributes).map(([key, value]) => (
+                            <li key={key}>
+                              ❌ {key}: {value}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Proof値 */}
+                  {proofData.proof && (
+                    <div>
+                      <span className="text-gray-600 font-semibold">Proof:</span>
+                      <div className="mt-1 p-3 bg-white rounded-lg font-mono text-xs break-all">
+                        <div>Type: {proofData.proof.type}</div>
+                        <div>Proof Value: {proofData.proof.proofValue}</div>
+                        <div>Revealed Attributes: {proofData.proof.revealedAttributes?.join(", ")}</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 検証結果 */}
+                  {proofData.verifyResult && (
+                    <div>
+                      <span className="text-gray-600 font-semibold">検証結果:</span>
+                      <div className="mt-2 p-3 bg-white rounded-lg border">
+                        <div className="text-green-800 font-semibold">
+                          ✅ Verified: {proofData.verifyResult.verified ? "true" : "false"}
+                        </div>
+                        {proofData.verifyResult.conditions && (
+                          <div className="mt-2 space-y-1">
+                            {proofData.verifyResult.conditions.map((cond, idx) => (
+                              <div key={idx} className="text-sm text-gray-700">
+                                - {cond.type}: {cond.condition} ({cond.satisfied ? "満たす" : "満たさない"})
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 生成日時 */}
                   <div>
-                    <span className="text-gray-600">生成日時:</span>
+                    <span className="text-gray-600 font-semibold">生成日時:</span>
                     <div className="mt-1 text-gray-700">
                       {new Date(proofData.timestamp).toLocaleString("ja-JP")}
                     </div>
@@ -170,8 +285,8 @@ export default function ZKProof() {
             <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
               <h3 className="font-bold text-blue-900 mb-2">就職活動での活用</h3>
               <p className="text-blue-800">
-                企業に「3つ以上のスタンプを所有している」ことを証明できます。
-                どの企業から取得したかなどの詳細情報は公開せずに証明可能です。
+                企業に「25歳以上」「TOEIC800点以上」などの条件を満たすことを証明できます。
+                正確な年齢やスコアなどの詳細情報は公開せずに証明可能です。
               </p>
             </div>
             <div className="bg-purple-50 rounded-xl p-6 border border-purple-200">
