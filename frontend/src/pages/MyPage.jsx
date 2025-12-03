@@ -13,28 +13,37 @@ export default function MyPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    try {
-      storage.initMockData();
-      const allStamps = storage.getStamps();
-      const allNFTs = storage.getNFTs();
-      setStamps(allStamps);
-      setNfts(allNFTs);
+    const loadData = async () => {
+      try {
+        storage.initMockData();
+        const allStamps = storage.getStamps();
+        const allNFTs = storage.getNFTs();
+        
+        console.log("MyPage loaded data:", { allStamps, allNFTs });
+        
+        setStamps(allStamps || []);
+        setNfts(allNFTs || []);
 
-      // 企業別にグループ化
-      const groups = {};
-      allStamps.forEach((stamp) => {
-        if (!groups[stamp.organization]) {
-          groups[stamp.organization] = [];
+        // 企業別にグループ化
+        const groups = {};
+        if (allStamps && allStamps.length > 0) {
+          allStamps.forEach((stamp) => {
+            if (!groups[stamp.organization]) {
+              groups[stamp.organization] = [];
+            }
+            groups[stamp.organization].push(stamp);
+          });
         }
-        groups[stamp.organization].push(stamp);
-      });
-      setOrganizationGroups(groups);
-      setLoading(false);
-    } catch (err) {
-      console.error("Error loading data:", err);
-      setError("データの読み込みに失敗しました");
-      setLoading(false);
-    }
+        setOrganizationGroups(groups);
+        setLoading(false);
+      } catch (err) {
+        console.error("Error loading data:", err);
+        setError("データの読み込みに失敗しました");
+        setLoading(false);
+      }
+    };
+
+    loadData();
   }, []);
 
   const canMintNFT = (org, count) => count >= 3;
@@ -81,7 +90,18 @@ export default function MyPage() {
 
         {/* 企業別スタンプ */}
         <div className="space-y-6">
-          {Object.entries(organizationGroups).map(([org, orgStamps]) => {
+          {Object.keys(organizationGroups).length === 0 ? (
+            <div className="bg-white rounded-2xl shadow-lg p-12 text-center border border-gray-100">
+              <div className="text-8xl mb-6">📭</div>
+              <p className="text-gray-700 text-xl font-semibold mb-2">
+                まだスタンプがありません
+              </p>
+              <p className="text-gray-500 text-base">
+                企業のイベントに参加してスタンプを集めましょう！
+              </p>
+            </div>
+          ) : (
+            Object.entries(organizationGroups).map(([org, orgStamps]) => {
             const count = orgStamps.length;
             const canMint = canMintNFT(org, count);
 
@@ -122,7 +142,8 @@ export default function MyPage() {
                 )}
               </div>
             );
-          })}
+          })
+          )}
         </div>
 
         {/* 取得したNFT証明書 */}

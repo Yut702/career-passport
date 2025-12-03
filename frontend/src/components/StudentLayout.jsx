@@ -25,7 +25,7 @@ export default function StudentLayout({ children }) {
                   <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                     CareerPassport
                   </div>
-                  <div className="text-xs text-gray-500">学生向け</div>
+                  <div className="text-xs text-gray-500">ユーザー向け</div>
                 </div>
               </Link>
             </div>

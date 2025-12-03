@@ -6,7 +6,7 @@ import { storage } from "../lib/storage";
 export default function OrgDashboard() {
   const [stats, setStats] = useState({
     totalStamps: 0,
-    totalStudents: 0,
+    totalUsers: 0,
     totalNFTs: 0,
   });
   const [recentStamps, setRecentStamps] = useState([]);
@@ -14,27 +14,33 @@ export default function OrgDashboard() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    try {
-      storage.initMockData();
-      const stamps = storage.getStamps();
-      const nfts = storage.getNFTs();
+    const loadData = async () => {
+      try {
+        storage.initMockData();
+        const stamps = storage.getStamps();
+        const nfts = storage.getNFTs();
 
-      // 統計を計算
-      const uniqueStudents = new Set(stamps.map((s) => s.id));
-      setStats({
-        totalStamps: stamps.length,
-        totalStudents: uniqueStudents.size,
-        totalNFTs: nfts.length,
-      });
+        console.log("OrgDashboard loaded data:", { stamps, nfts });
 
-      // 最近の発行（簡易版）
-      setRecentStamps(stamps.slice(-5).reverse());
-      setLoading(false);
-    } catch (err) {
-      console.error("Error loading dashboard:", err);
-      setError("データの読み込みに失敗しました");
-      setLoading(false);
-    }
+        // 統計を計算
+        const uniqueUsers = new Set(stamps.map((s) => s.id));
+        setStats({
+          totalStamps: stamps.length || 0,
+          totalUsers: uniqueUsers.size || 0,
+          totalNFTs: nfts.length || 0,
+        });
+
+        // 最近の発行（簡易版）
+        setRecentStamps(stamps.slice(-5).reverse() || []);
+        setLoading(false);
+      } catch (err) {
+        console.error("Error loading dashboard:", err);
+        setError("データの読み込みに失敗しました");
+        setLoading(false);
+      }
+    };
+
+    loadData();
   }, []);
 
   if (loading) {
@@ -99,9 +105,9 @@ export default function OrgDashboard() {
                 <span className="text-3xl">👥</span>
               </div>
             </div>
-            <div className="text-sm text-green-100 mb-2">参加学生数</div>
+            <div className="text-sm text-green-100 mb-2">参加者数</div>
             <div className="text-4xl font-bold">
-              {stats.totalStudents} 人
+              {stats.totalUsers} 人
             </div>
           </div>
           <div className="bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl shadow-xl p-8 text-white">

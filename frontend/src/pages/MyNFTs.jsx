@@ -9,16 +9,23 @@ export default function MyNFTs() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    try {
-      storage.initMockData();
-      const nftsData = storage.getNFTs();
-      setNfts(nftsData);
-      setLoading(false);
-    } catch (err) {
-      console.error("Error loading NFTs:", err);
-      setError("NFTの読み込みに失敗しました");
-      setLoading(false);
-    }
+    const loadData = async () => {
+      try {
+        storage.initMockData();
+        const nftsData = storage.getNFTs();
+        
+        console.log("MyNFTs loaded data:", nftsData);
+        
+        setNfts(nftsData || []);
+        setLoading(false);
+      } catch (err) {
+        console.error("Error loading NFTs:", err);
+        setError("NFTの読み込みに失敗しました");
+        setLoading(false);
+      }
+    };
+
+    loadData();
   }, []);
 
   if (loading) {

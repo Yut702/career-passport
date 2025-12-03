@@ -10,59 +10,66 @@ export default function NFTDetail() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    try {
-      storage.initMockData();
-      const nfts = storage.getNFTs();
-      const found = nfts.find((n) => n.id === id || n.nftId === id);
-      setNft(found);
-      setLoading(false);
-    } catch (err) {
-      console.error("Error loading NFT:", err);
-      setError("NFTの読み込みに失敗しました");
-      setLoading(false);
-    }
+    const loadData = async () => {
+      try {
+        storage.initMockData();
+        const nfts = storage.getNFTs();
+        
+        console.log("NFTDetail loaded data:", { nfts, id });
+        
+        const found = nfts.find((n) => n.id === id || n.tokenId === id);
+        setNft(found || null);
+        setLoading(false);
+      } catch (err) {
+        console.error("Error loading NFT:", err);
+        setError("NFTの読み込みに失敗しました");
+        setLoading(false);
+      }
+    };
+
+    loadData();
   }, [id]);
 
   if (loading) {
     return (
-      <Layout>
+      <StudentLayout>
         <div className="flex justify-center items-center h-64">
           <div className="text-gray-600">読み込み中...</div>
         </div>
-      </Layout>
+      </StudentLayout>
     );
   }
 
   if (error) {
     return (
-      <Layout>
+      <StudentLayout>
         <div className="bg-red-50 border border-red-200 rounded-lg p-6">
           <div className="text-red-800 font-semibold mb-2">エラー</div>
           <div className="text-red-600">{error}</div>
           <Link
-            to="/nfts"
+            to="/student/nfts"
             className="text-blue-600 hover:underline mt-4 inline-block"
           >
             NFT 一覧に戻る
           </Link>
         </div>
-      </Layout>
+      </StudentLayout>
     );
   }
 
   if (!nft) {
     return (
-      <Layout>
+      <StudentLayout>
         <div className="text-center py-12">
           <p className="text-gray-600">NFT が見つかりませんでした</p>
           <Link
-            to="/nfts"
+            to="/student/nfts"
             className="text-blue-600 hover:underline mt-4 inline-block"
           >
             NFT 一覧に戻る
           </Link>
         </div>
-      </Layout>
+      </StudentLayout>
     );
   }
 

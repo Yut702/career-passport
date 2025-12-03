@@ -17,20 +17,16 @@ export default function RouterComponent() {
         {/* 入り口画面 */}
         <Route path="/" element={<UserTypeSelection />} />
 
-        {/* 学生向けルート */}
-        <Route path="/student" element={<StudentLayout />}>
-          <Route index element={<Home />} />
-          <Route path="mypage" element={<MyPage />} />
-          <Route path="nfts" element={<MyNFTs />} />
-          <Route path="nft/:id" element={<NFTDetail />} />
-          <Route path="zk-proof" element={<ZKProof />} />
-        </Route>
+        {/* ユーザー向けルート */}
+        <Route path="/student" element={<Home />} />
+        <Route path="/student/mypage" element={<MyPage />} />
+        <Route path="/student/nfts" element={<MyNFTs />} />
+        <Route path="/student/nft/:id" element={<NFTDetail />} />
+        <Route path="/student/zk-proof" element={<ZKProof />} />
 
         {/* 企業向けルート */}
-        <Route path="/org" element={<OrgLayout />}>
-          <Route index element={<OrgDashboard />} />
-          <Route path="stamp-issuance" element={<OrgStampIssuance />} />
-        </Route>
+        <Route path="/org" element={<OrgDashboard />} />
+        <Route path="/org/stamp-issuance" element={<OrgStampIssuance />} />
 
         {/* 旧ルートのリダイレクト（後方互換性のため） */}
         <Route path="/mypage" element={<Navigate to="/student/mypage" replace />} />

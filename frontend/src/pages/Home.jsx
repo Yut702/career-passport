@@ -14,31 +14,42 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    try {
-      storage.initMockData();
-      const userData = storage.getUser();
-      const stampsData = storage.getStamps();
-      const nftsData = storage.getNFTs();
+    const loadData = async () => {
+      try {
+        // モックデータを初期化
+        storage.initMockData();
 
-      setUser(userData);
-      setStamps(stampsData);
-      setNfts(nftsData);
+        // データを取得
+        const userData = storage.getUser();
+        const stampsData = storage.getStamps();
+        const nftsData = storage.getNFTs();
 
-      // 企業別のスタンプ数を集計
-      const stats = {};
-      stampsData.forEach((stamp) => {
-        if (!stats[stamp.organization]) {
-          stats[stamp.organization] = 0;
+        console.log("Loaded data:", { userData, stampsData, nftsData });
+
+        setUser(userData);
+        setStamps(stampsData || []);
+        setNfts(nftsData || []);
+
+        // 企業別のスタンプ数を集計
+        const stats = {};
+        if (stampsData && stampsData.length > 0) {
+          stampsData.forEach((stamp) => {
+            if (!stats[stamp.organization]) {
+              stats[stamp.organization] = 0;
+            }
+            stats[stamp.organization]++;
+          });
         }
-        stats[stamp.organization]++;
-      });
-      setOrganizationStats(stats);
-      setLoading(false);
-    } catch (err) {
-      console.error("Error loading data:", err);
-      setError("データの読み込みに失敗しました");
-      setLoading(false);
-    }
+        setOrganizationStats(stats);
+        setLoading(false);
+      } catch (err) {
+        console.error("Error loading data:", err);
+        setError("データの読み込みに失敗しました");
+        setLoading(false);
+      }
+    };
+
+    loadData();
   }, []);
 
   // 次の目標を計算（3つ未満の企業）
@@ -125,14 +136,14 @@ export default function Home() {
         </div>
 
         {/* 次の目標 */}
-        {nextGoal && (
-          <div className="bg-white rounded-2xl shadow-lg p-8 border border-gray-100">
-            <div className="flex items-center space-x-3 mb-6">
-              <div className="w-12 h-12 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg">
-                <span className="text-2xl">🎯</span>
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900">次の目標</h2>
+        <div className="bg-white rounded-2xl shadow-lg p-8 border border-gray-100">
+          <div className="flex items-center space-x-3 mb-6">
+            <div className="w-12 h-12 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg">
+              <span className="text-2xl">🎯</span>
             </div>
+            <h2 className="text-2xl font-bold text-gray-900">次の目標</h2>
+          </div>
+          {nextGoal ? (
             <div className="space-y-4">
               <p className="text-gray-700 text-lg">
                 <span className="font-bold text-gray-900">
@@ -149,8 +160,15 @@ export default function Home() {
                 label={`${nextGoal.organization} スタンプ`}
               />
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="text-center py-4 text-gray-500">
+              <p className="text-lg">すべての目標を達成しました！🎉</p>
+              <p className="text-sm mt-2">
+                新しいスタンプを集めて、さらに成長しましょう。
+              </p>
+            </div>
+          )}
+        </div>
 
         {/* 最近のスタンプ */}
         <div className="bg-white rounded-2xl shadow-lg p-8 border border-gray-100">
@@ -160,11 +178,20 @@ export default function Home() {
             </div>
             <h2 className="text-2xl font-bold text-gray-900">最近のスタンプ</h2>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {recentStamps.map((stamp) => (
-              <StampCard key={stamp.id} stamp={stamp} />
-            ))}
-          </div>
+          {recentStamps.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {recentStamps.map((stamp) => (
+                <StampCard key={stamp.id} stamp={stamp} />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <p className="text-lg mb-2">まだスタンプがありません</p>
+              <p className="text-sm">
+                企業のイベントに参加してスタンプを集めましょう！
+              </p>
+            </div>
+          )}
         </div>
 
         {/* アクションボタン */}

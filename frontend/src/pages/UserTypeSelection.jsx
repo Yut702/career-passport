@@ -35,7 +35,7 @@ export default function UserTypeSelection() {
 
         {/* 選択カード */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* 学生用 */}
+          {/* ユーザー用 */}
           <div
             onClick={() => handleSelect("student")}
             className={`group relative bg-white rounded-3xl shadow-xl p-10 cursor-pointer transform transition-all duration-300 hover:scale-105 hover:shadow-2xl border-2 ${
@@ -46,9 +46,9 @@ export default function UserTypeSelection() {
           >
             <div className="text-center">
               <div className="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-blue-400 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                <span className="text-5xl">👨‍🎓</span>
+                <span className="text-5xl">👤</span>
               </div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-3">学生</h2>
+              <h2 className="text-3xl font-bold text-gray-900 mb-3">ユーザー</h2>
               <p className="text-gray-600 mb-6">
                 スタンプを集めて、NFT証明書を取得しましょう
               </p>
@@ -67,7 +67,7 @@ export default function UserTypeSelection() {
                 </div>
               </div>
               <button className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all">
-                学生としてログイン
+                ユーザーとしてログイン
               </button>
             </div>
           </div>
@@ -87,7 +87,7 @@ export default function UserTypeSelection() {
               </div>
               <h2 className="text-3xl font-bold text-gray-900 mb-3">企業</h2>
               <p className="text-gray-600 mb-6">
-                スタンプを発行して、学生の成長をサポート
+                スタンプを発行して、ユーザーの成長をサポート
               </p>
               <div className="space-y-2 text-sm text-gray-500 mb-6">
                 <div className="flex items-center justify-center space-x-2">
@@ -100,7 +100,7 @@ export default function UserTypeSelection() {
                 </div>
                 <div className="flex items-center justify-center space-x-2">
                   <span>✅</span>
-                  <span>学生管理</span>
+                  <span>ユーザー管理</span>
                 </div>
               </div>
               <button className="w-full bg-gradient-to-r from-purple-600 to-purple-700 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all">
