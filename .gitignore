@@ -147,3 +147,6 @@ build/
 # Forge / Hardhat
 contracts/lib/forge-std/artifacts/
 contracts/lib/forge-std/cache/
+
+# Temporary files
+temp/
