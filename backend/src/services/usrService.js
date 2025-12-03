@@ -1,33 +1,113 @@
-import bcrypt from 'bcrypt';
+import bcrypt from "bcrypt";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import {
+  DynamoDBDocumentClient,
+  PutCommand,
+  GetCommand,
+  UpdateCommand
+} from "@aws-sdk/lib-dynamodb";
 
-const usrs = [];
+const client = new DynamoDBClient({
+  region: process.env.AWS_REGION,
+  endpoint: process.env.DYNAMODB_ENDPOINT,
+});
 
-async function register(email, password) {
-    if (usrs.find((u) => u.email === email)) throw new Error('already exists');
-    const passwordHash = await bcrypt.hash(password, 10);
-    const newusr = { id: usrs.length + 1, email, passwordHash, name: null, age: null };
-    usrs.push(newusr);
-    return newusr;
+const ddb = DynamoDBDocumentClient.from(client);
+const TABLE = process.env.DYNAMODB_TABLE_USERS;
+
+// -------------------------------
+// Register
+// -------------------------------
+export async function register(email, password) {
+  // 既存確認
+  const existing = await findByEmail(email);
+  if (existing) throw new Error("User already exists");
+
+  // ハッシュ作成
+  const passwordHash = await bcrypt.hash(password, 10);
+
+  // Insert
+  await ddb.send(
+    new PutCommand({
+      TableName: TABLE,
+      Item: {
+        email,
+        passwordHash,
+        firstName: null,
+        lastName: null,
+        gender: null,
+        dob: null,
+        age: null,
+      },
+      ConditionExpression: "attribute_not_exists(email)",
+    })
+  );
+
+  return { email };
 }
 
-async function login(email, password) {
-    const usr = usrs.find((u) => u.email === email);
-    if (!usr) throw new Error('not found');
-    const ok = await bcrypt.compare(password, usr.passwordHash);
-    if (!ok) throw new Error('invalid password');
-    return usr;
+// -------------------------------
+// Login
+// -------------------------------
+export async function login(email, password) {
+  const usr = await findByEmail(email);
+  if (!usr) throw new Error("User not found");
+
+  const ok = await bcrypt.compare(password, usr.passwordHash);
+  if (!ok) throw new Error("Invalid password");
+
+  return usr;
 }
 
-function saveProfile(id, name, age) {
-    const usr = usrs.find((u) => u.id === id);
-    if (!usr) throw new Error('not found');
-    usr.name = name;
-    usr.age = age;
-    return usr;
+// -------------------------------
+// Save profile
+// -------------------------------
+export async function saveProfile(email, profile) {
+  // profile: { firstName, lastName, dob, gender, age }
+
+  const params = {
+    TableName: TABLE,
+    Key: { email },
+    UpdateExpression:
+      "SET firstName = :fn, lastName = :ln, dob = :dob, gender = :gender, age = :age",
+    ExpressionAttributeValues: {
+      ":fn": profile.firstName ?? null,
+      ":ln": profile.lastName ?? null,
+      ":dob": profile.dob ?? null,
+      ":gender": profile.gender ?? null,
+      ":age": profile.age ?? null,
+    },
+    ReturnValues: "ALL_NEW",
+  };
+
+  const res = await ddb.send(new UpdateCommand(params));
+  return res.Attributes;
 }
 
-function getMe(id) {
-    return usrs.find((u) => u.id === id);
+// -------------------------------
+// Get Me
+// -------------------------------
+export async function getMe(email) {
+  const res = await ddb.send(
+    new GetCommand({
+      TableName: TABLE,
+      Key: { email },
+    })
+  );
+  return res.Item;
+}
+
+// -------------------------------
+// Helper
+// -------------------------------
+async function findByEmail(email) {
+  const res = await ddb.send(
+    new GetCommand({
+      TableName: TABLE,
+      Key: { email },
+    })
+  );
+  return res.Item || null;
 }
 
 export default { register, login, saveProfile, getMe };

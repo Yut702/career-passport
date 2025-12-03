@@ -59,6 +59,14 @@ cp .env.example .env
 
 # 2. DynamoDB Local を Docker で起動（初回のみ）
 docker run -d -p 8000:8000 amazon/dynamodb-local
+# データが消えないように起動するためのスクリプト
+docker run -d \
+  --name dynamodb \
+  -p 8000:8000 \
+  -v $(pwd)/dynamodb/data:/home/dynamodblocal/data \
+  amazon/dynamodb-local \
+  -jar DynamoDBLocal.jar -sharedDb -dbPath /home/dynamodblocal/data
+
 
 # 3. テーブルを作成し、初期データを投入
 npm run create-table

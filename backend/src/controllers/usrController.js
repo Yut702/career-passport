@@ -1,4 +1,5 @@
-import usrService from '../services/usrService.js';
+// import usrService from '../services/usrService.js';
+import * as usrService from '../services/usrService.js';
 import { generateToken } from '../utils/jwt.js';
 import { upsertUserProfile, getUserByEmail } from '../models/usrModel.js';
 
