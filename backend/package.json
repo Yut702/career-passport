@@ -6,7 +6,10 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
+    "dynamodb:install": "dynamodb-local install",
+    "dynamodb:start": "dynamodb-local --port 8000",
     "create-table": "node scripts/create-table.js",
+    "create-tables": "node scripts/create-tables.js",
     "seed": "node scripts/seed-user.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -22,6 +25,7 @@
     "jsonwebtoken": "^9.0.2"
   },
   "devDependencies": {
+    "dynamodb-local": "^0.0.36",
     "nodemon": "^3.1.11"
   }
 }
