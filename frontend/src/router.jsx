@@ -41,6 +41,7 @@ export default function RouterComponent() {
 
         {/* 企業向けルート */}
         <Route path="/org-login" element={<OrgLogin />} />
+        <Route path="/org-dashboard" element={<OrgDashboard />} />
         <Route path="/org" element={<OrgDashboard />} />
         <Route path="/org/stamp-issuance" element={<OrgStampIssuance />} />
 

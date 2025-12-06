@@ -1,175 +1,152 @@
-import { useEffect, useState } from "react";
-import OrgLayout from "../components/OrgLayout";
-import { Link } from "react-router-dom";
-import { storage } from "../lib/storage";
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 export default function OrgDashboard() {
-  const [stats, setStats] = useState({
-    totalStamps: 0,
-    totalUsers: 0,
-    totalNFTs: 0,
-  });
-  const [recentStamps, setRecentStamps] = useState([]);
+  const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState('');
+  const navigate = useNavigate();
+
+  const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3000';
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        storage.initMockData();
-        const stamps = storage.getStamps();
-        const nfts = storage.getNFTs();
-
-        console.log("OrgDashboard loaded data:", { stamps, nfts });
-
-        // 統計を計算
-        const uniqueUsers = new Set(stamps.map((s) => s.id));
-        setStats({
-          totalStamps: stamps.length || 0,
-          totalUsers: uniqueUsers.size || 0,
-          totalNFTs: nfts.length || 0,
-        });
-
-        // 最近の発行（簡易版）
-        setRecentStamps(stamps.slice(-5).reverse() || []);
-        setLoading(false);
-      } catch (err) {
-        console.error("Error loading dashboard:", err);
-        setError("データの読み込みに失敗しました");
-        setLoading(false);
-      }
-    };
-
-    loadData();
+    fetchDashboard();
   }, []);
+
+  const fetchDashboard = async () => {
+    const token = localStorage.getItem('org_token');
+    if (!token) {
+      navigate('/org-login');
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/api/org/dashboard`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (res.status === 401) {
+        localStorage.removeItem('org_token');
+        navigate('/org-login');
+        return;
+      }
+      
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to fetch dashboard');
+      
+      setDashboard(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const logout = () => {
+    localStorage.removeItem('org_token');
+    navigate('/org-login');
+  };
 
   if (loading) {
     return (
-      <OrgLayout>
-        <div className="flex justify-center items-center h-64">
-          <div className="text-gray-600">読み込み中...</div>
-        </div>
-      </OrgLayout>
+      <div style={{ maxWidth: 800, margin: '0 auto', padding: 20 }}>
+        <p>Loading...</p>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <OrgLayout>
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-          <div className="text-red-800 font-semibold mb-2">エラー</div>
-          <div className="text-red-600">{error}</div>
-          <button
-            onClick={() => window.location.reload()}
-            className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-          >
-            再読み込み
-          </button>
-        </div>
-      </OrgLayout>
+      <div style={{ maxWidth: 800, margin: '0 auto', padding: 20 }}>
+        <p style={{ color: 'red' }}>Error: {error}</p>
+        <button onClick={() => navigate('/org-login')}>Back to Login</button>
+      </div>
     );
   }
 
   return (
-    <OrgLayout>
-      <div className="space-y-8">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">企業管理画面</h1>
-            <p className="text-gray-600">スタンプ発行と統計管理</p>
-          </div>
-          <Link
-            to="/org/stamp-issuance"
-            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
-          >
-            🎫 スタンプを発行
-          </Link>
-        </div>
+    <div style={{ maxWidth: 800, margin: '0 auto', padding: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <h1>Organization Dashboard</h1>
+        <button onClick={logout}>Logout</button>
+      </div>
 
-        {/* ダッシュボード */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl shadow-xl p-8 text-white">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center">
-                <span className="text-3xl">🎫</span>
-              </div>
-            </div>
-            <div className="text-sm text-blue-100 mb-2">発行済みスタンプ</div>
-            <div className="text-4xl font-bold">
-              {stats.totalStamps} 枚
-            </div>
-          </div>
-          <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl shadow-xl p-8 text-white">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center">
-                <span className="text-3xl">👥</span>
-              </div>
-            </div>
-            <div className="text-sm text-green-100 mb-2">参加者数</div>
-            <div className="text-4xl font-bold">
-              {stats.totalUsers} 人
-            </div>
-          </div>
-          <div className="bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl shadow-xl p-8 text-white">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center">
-                <span className="text-3xl">🏆</span>
-              </div>
-            </div>
-            <div className="text-sm text-purple-100 mb-2">NFT 発行数</div>
-            <div className="text-4xl font-bold">
-              {stats.totalNFTs} 枚
-            </div>
-          </div>
-        </div>
+      <p style={{ color: '#666', marginBottom: 20 }}>Organization ID: {dashboard.orgId}</p>
 
-        {/* 最近の発行 */}
-        <div className="bg-white rounded-2xl shadow-lg p-8 border border-gray-100">
-          <div className="flex items-center space-x-3 mb-6">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-purple-500 rounded-xl flex items-center justify-center">
-              <span className="text-2xl">📋</span>
-            </div>
-            <h2 className="text-2xl font-bold text-gray-900">最近の発行</h2>
-          </div>
-          <div className="space-y-3">
-            {recentStamps.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="text-6xl mb-4">📭</div>
-                <p className="text-gray-500 text-lg">
-                  まだスタンプを発行していません
-                </p>
-              </div>
-            ) : (
-              recentStamps.map((stamp) => (
-                <div
-                  key={stamp.id}
-                  className="flex items-center justify-between p-5 bg-gradient-to-r from-gray-50 to-white rounded-xl border border-gray-200 hover:shadow-md transition-shadow"
-                >
-                  <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-purple-500 rounded-lg flex items-center justify-center">
-                      <span className="text-2xl">🎫</span>
-                    </div>
-                    <div>
-                      <div className="font-bold text-gray-900">{stamp.name}</div>
-                      <div className="text-sm text-gray-600">
-                        {stamp.organization}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-sm text-gray-500 font-medium">
-                    {new Date(stamp.issuedAt).toLocaleDateString("ja-JP", {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric"
-                    })}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+      {/* サマリーカード */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 30 }}>
+        <div style={cardStyle}>
+          <h3 style={{ margin: 0, color: '#666', fontSize: 14 }}>Total Stamps</h3>
+          <p style={{ margin: '10px 0 0', fontSize: 32, fontWeight: 'bold', color: '#2563eb' }}>
+            {dashboard.summary.totalStamps}
+          </p>
+        </div>
+        <div style={cardStyle}>
+          <h3 style={{ margin: 0, color: '#666', fontSize: 14 }}>Total Participants</h3>
+          <p style={{ margin: '10px 0 0', fontSize: 32, fontWeight: 'bold', color: '#16a34a' }}>
+            {dashboard.summary.totalParticipants}
+          </p>
+        </div>
+        <div style={cardStyle}>
+          <h3 style={{ margin: 0, color: '#666', fontSize: 14 }}>Total NFTs</h3>
+          <p style={{ margin: '10px 0 0', fontSize: 32, fontWeight: 'bold', color: '#9333ea' }}>
+            {dashboard.summary.totalNfts ?? 0}
+          </p>
         </div>
       </div>
-    </OrgLayout>
+
+      {/* イベント一覧 */}
+      <h2 style={{ marginBottom: 16 }}>Events</h2>
+      {dashboard.events.length === 0 ? (
+        <p style={{ color: '#666' }}>No events yet.</p>
+      ) : (
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ backgroundColor: '#f3f4f6' }}>
+              <th style={thStyle}>Event Title</th>
+              <th style={thStyle}>Participants</th>
+              <th style={thStyle}>Stamps</th>
+              <th style={thStyle}>Satisfaction</th>
+            </tr>
+          </thead>
+          <tbody>
+            {dashboard.events.map((event) => (
+              <tr key={event.eventId} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                <td style={tdStyle}>{event.title}</td>
+                <td style={{ ...tdStyle, textAlign: 'center' }}>{event.participantCount}</td>
+                <td style={{ ...tdStyle, textAlign: 'center' }}>{event.stampCount}</td>
+                <td style={{ ...tdStyle, textAlign: 'center' }}>
+                  {event.satisfactionScore !== null ? (
+                    <span style={{ color: '#f59e0b' }}>★ {event.satisfactionScore.toFixed(1)}</span>
+                  ) : (
+                    <span style={{ color: '#9ca3af' }}>-</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
   );
 }
 
+const cardStyle = {
+  backgroundColor: '#fff',
+  border: '1px solid #e5e7eb',
+  borderRadius: 8,
+  padding: 16,
+  boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+};
+
+const thStyle = {
+  padding: '12px 16px',
+  textAlign: 'left',
+  fontWeight: 600,
+  fontSize: 14
+};
+
+const tdStyle = {
+  padding: '12px 16px',
+  fontSize: 14
+};

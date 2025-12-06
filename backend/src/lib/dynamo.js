@@ -73,3 +73,66 @@ export async function updateUserProfile(tableName, email, profile) {
   const result = await dynamoDB.update(params).promise();
   return result.Attributes;
 }
+
+// ========== Event / Stamp / Participant 関連 ==========
+
+/**
+ * 組織のイベント一覧を取得
+ */
+export async function getEventsByOrgEmail(tableName, orgEmail) {
+  const params = {
+    TableName: tableName,
+    FilterExpression: 'orgEmail = :orgEmail',
+    ExpressionAttributeValues: { ':orgEmail': orgEmail }
+  };
+  const result = await dynamoDB.scan(params).promise();
+  return result.Items || [];
+}
+
+/**
+ * イベントIDでスタンプ一覧を取得
+ */
+export async function getStampsByEventId(tableName, eventId) {
+  const params = {
+    TableName: tableName,
+    FilterExpression: 'eventId = :eventId',
+    ExpressionAttributeValues: { ':eventId': eventId }
+  };
+  const result = await dynamoDB.scan(params).promise();
+  return result.Items || [];
+}
+
+/**
+ * 組織のすべてのスタンプを取得
+ */
+export async function getStampsByOrgEmail(tableName, orgEmail) {
+  const params = {
+    TableName: tableName,
+    FilterExpression: 'orgEmail = :orgEmail',
+    ExpressionAttributeValues: { ':orgEmail': orgEmail }
+  };
+  const result = await dynamoDB.scan(params).promise();
+  return result.Items || [];
+}
+
+/**
+ * イベントを作成
+ */
+export async function putEvent(tableName, event) {
+  const params = {
+    TableName: tableName,
+    Item: event
+  };
+  await dynamoDB.put(params).promise();
+}
+
+/**
+ * スタンプを作成
+ */
+export async function putStamp(tableName, stamp) {
+  const params = {
+    TableName: tableName,
+    Item: stamp
+  };
+  await dynamoDB.put(params).promise();
+}
