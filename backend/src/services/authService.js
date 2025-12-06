@@ -6,10 +6,13 @@ export const loginService = async (email, password) => {
   const user = await getUserByEmail(email);
   if (!user) throw new Error("User not found");
 
-  const isValid = bcrypt.compareSync(password, user.password);
+  // support both "password" and "passwordHash" stored fields
+  const hash = user.passwordHash || user.password;
+  const isValid = bcrypt.compareSync(password, hash);
   if (!isValid) throw new Error("Invalid password");
 
-  const token = generateToken(user.id);
+  // if user.id is missing (seed uses email as key), fall back to email
+  const token = generateToken(user.id || user.email);
 
   return {
     message: "Login successful",

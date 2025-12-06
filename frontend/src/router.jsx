@@ -1,4 +1,11 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import Top from "./pages/Top"
+import Login from "./pages/Login";
+import OrgLogin from "./pages/OrgLogin";
+import UsrSignUp from "./pages/UsrSignUp";
+import UsrSignIn from "./pages/UsrSignIn";
+import UsrInitStng from "./pages/UsrInitStng";
+import UsrHome from "./pages/UsrHome";
 import UserTypeSelection from "./pages/UserTypeSelection";
 import StudentLayout from "./components/StudentLayout";
 import OrgLayout from "./components/OrgLayout";
@@ -14,10 +21,18 @@ export default function RouterComponent() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* 入り口画面 */}
-        <Route path="/" element={<UserTypeSelection />} />
+        {/* Top/入り口画面 */}
+        <Route path="/" element={<Top />} />
+        <Route path="/top" element={<Top />} />
+        <Route path="/user-type" element={<UserTypeSelection />} />
 
         {/* ユーザー向けルート */}
+        <Route path="/usr-signup" element={<UsrSignUp />} />
+        <Route path="/usr-signin" element={<UsrSignIn />} />
+        <Route path="/usr-init" element={<UsrInitStng />} />        
+        <Route path="/usr-home" element={<UsrHome />} />
+
+        {/* 学生向けルート（旧UI） */}
         <Route path="/student" element={<Home />} />
         <Route path="/student/mypage" element={<MyPage />} />
         <Route path="/student/nfts" element={<MyNFTs />} />
@@ -25,6 +40,7 @@ export default function RouterComponent() {
         <Route path="/student/zk-proof" element={<ZKProof />} />
 
         {/* 企業向けルート */}
+        <Route path="/org-login" element={<OrgLogin />} />
         <Route path="/org" element={<OrgDashboard />} />
         <Route path="/org/stamp-issuance" element={<OrgStampIssuance />} />
 
@@ -34,7 +50,7 @@ export default function RouterComponent() {
         <Route path="/nft/:id" element={<Navigate to="/student/nft/:id" replace />} />
 
         {/* 404 */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/top" replace />} />
       </Routes>
     </BrowserRouter>
   );
