@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 export default function OrgLogin() {
   const [email, setEmail] = useState('org@example.com');
@@ -7,6 +8,7 @@ export default function OrgLogin() {
   const [mode, setMode] = useState('login'); // 'login' or 'register'
   const [status, setStatus] = useState('');
   const [user, setUser] = useState(null);
+  const navigate = useNavigate();
 
   const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3000';
 
@@ -34,6 +36,7 @@ export default function OrgLogin() {
         localStorage.setItem('org_token', data.token);
         setUser(data.user);
         setStatus('Login successful');
+        navigate('/org-dashboard');
       }
     } catch (err) {
       setStatus('Error: ' + err.message);

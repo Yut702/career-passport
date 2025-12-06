@@ -1,22 +1,7 @@
-import AWS from "aws-sdk";
+import { getUserByEmail as libGetUserByEmail } from "../lib/dynamo.js";
 
-AWS.config.update({
-  region: "ap-northeast-1",
-});
-
-const dynamo = new AWS.DynamoDB.DocumentClient();
-const TABLE = "Users";
+const TABLE = process.env.DYNAMODB_TABLE_USERS || "CareerPassportUsers";
 
 export const getUserByEmail = async (email) => {
-  const params = {
-    TableName: TABLE,
-    IndexName: "EmailIndex", // GSIで email を検索できるように設定する
-    KeyConditionExpression: "email = :email",
-    ExpressionAttributeValues: {
-      ":email": email,
-    },
-  };
-
-  const result = await dynamo.query(params).promise();
-  return result.Items[0];
+  return await libGetUserByEmail(TABLE, email);
 };

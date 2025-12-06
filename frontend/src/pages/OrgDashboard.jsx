@@ -1,47 +1,53 @@
 import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import OrgLayout from "../components/OrgLayout";
-import { Link } from "react-router-dom";
-import { storage } from "../lib/storage";
 
 export default function OrgDashboard() {
-  const [stats, setStats] = useState({
-    totalStamps: 0,
-    totalUsers: 0,
-    totalNFTs: 0,
-  });
-  const [recentStamps, setRecentStamps] = useState([]);
+  const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const navigate = useNavigate();
+
+  const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3000';
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        storage.initMockData();
-        const stamps = storage.getStamps();
-        const nfts = storage.getNFTs();
-
-        console.log("OrgDashboard loaded data:", { stamps, nfts });
-
-        // 統計を計算
-        const uniqueUsers = new Set(stamps.map((s) => s.id));
-        setStats({
-          totalStamps: stamps.length || 0,
-          totalUsers: uniqueUsers.size || 0,
-          totalNFTs: nfts.length || 0,
-        });
-
-        // 最近の発行（簡易版）
-        setRecentStamps(stamps.slice(-5).reverse() || []);
-        setLoading(false);
-      } catch (err) {
-        console.error("Error loading dashboard:", err);
-        setError("データの読み込みに失敗しました");
-        setLoading(false);
-      }
-    };
-
-    loadData();
+    fetchDashboard();
   }, []);
+
+  const fetchDashboard = async () => {
+    const token = localStorage.getItem('org_token');
+    if (!token) {
+      navigate('/org-login');
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/api/org/dashboard`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (res.status === 401) {
+        localStorage.removeItem('org_token');
+        navigate('/org-login');
+        return;
+      }
+      
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to fetch dashboard');
+      
+      setDashboard(data);
+      setLoading(false);
+    } catch (err) {
+      console.error("Error loading dashboard:", err);
+      setError(err.message);
+      setLoading(false);
+    }
+  };
+
+  const logout = () => {
+    localStorage.removeItem('org_token');
+    navigate('/org-login');
+  };
 
   if (loading) {
     return (
@@ -76,17 +82,25 @@ export default function OrgDashboard() {
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-4xl font-bold text-gray-900 mb-2">企業管理画面</h1>
-            <p className="text-gray-600">スタンプ発行と統計管理</p>
+            <p className="text-gray-600">組織ID: {dashboard.orgId}</p>
           </div>
-          <Link
-            to="/org/stamp-issuance"
-            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
-          >
-            🎫 スタンプを発行
-          </Link>
+          <div className="flex gap-3">
+            <Link
+              to="/org/stamp-issuance"
+              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
+            >
+              🎫 スタンプを発行
+            </Link>
+            <button
+              onClick={logout}
+              className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl font-bold hover:bg-gray-300 transition-all"
+            >
+              ログアウト
+            </button>
+          </div>
         </div>
 
-        {/* ダッシュボード */}
+        {/* ダッシュボードカード */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl shadow-xl p-8 text-white">
             <div className="flex items-center justify-between mb-4">
@@ -96,10 +110,11 @@ export default function OrgDashboard() {
             </div>
             <div className="text-sm text-blue-100 mb-2">発行済みスタンプ</div>
             <div className="text-4xl font-bold">
-              {stats.totalStamps} 枚
+              {dashboard.summary.totalStamps} 枚
             </div>
           </div>
-          <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl shadow-xl p-8 text-white">
+
+          <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl shadow-xl p-8 text-white">
             <div className="flex items-center justify-between mb-4">
               <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center">
                 <span className="text-3xl">👥</span>
@@ -107,69 +122,82 @@ export default function OrgDashboard() {
             </div>
             <div className="text-sm text-green-100 mb-2">参加者数</div>
             <div className="text-4xl font-bold">
-              {stats.totalUsers} 人
+              {dashboard.summary.totalParticipants} 名
             </div>
           </div>
-          <div className="bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl shadow-xl p-8 text-white">
+
+          <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl shadow-xl p-8 text-white">
             <div className="flex items-center justify-between mb-4">
               <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center">
                 <span className="text-3xl">🏆</span>
               </div>
             </div>
-            <div className="text-sm text-purple-100 mb-2">NFT 発行数</div>
+            <div className="text-sm text-purple-100 mb-2">発行済みNFT</div>
             <div className="text-4xl font-bold">
-              {stats.totalNFTs} 枚
+              {dashboard.summary.totalNfts ?? 0} 枚
             </div>
           </div>
         </div>
 
-        {/* 最近の発行 */}
-        <div className="bg-white rounded-2xl shadow-lg p-8 border border-gray-100">
-          <div className="flex items-center space-x-3 mb-6">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-purple-500 rounded-xl flex items-center justify-center">
-              <span className="text-2xl">📋</span>
+        {/* イベント統計 */}
+        <div className="bg-white rounded-2xl shadow-lg p-8">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">イベント統計</h2>
+          {dashboard.events.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="text-6xl mb-4">📊</div>
+              <p className="text-gray-500 text-lg">イベントデータがありません</p>
             </div>
-            <h2 className="text-2xl font-bold text-gray-900">最近の発行</h2>
-          </div>
-          <div className="space-y-3">
-            {recentStamps.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="text-6xl mb-4">📭</div>
-                <p className="text-gray-500 text-lg">
-                  まだスタンプを発行していません
-                </p>
-              </div>
-            ) : (
-              recentStamps.map((stamp) => (
+          ) : (
+            <div className="space-y-4">
+              {dashboard.events.map((event) => (
                 <div
-                  key={stamp.id}
-                  className="flex items-center justify-between p-5 bg-gradient-to-r from-gray-50 to-white rounded-xl border border-gray-200 hover:shadow-md transition-shadow"
+                  key={event.eventId}
+                  className="bg-gradient-to-r from-gray-50 to-white border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow"
                 >
-                  <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-purple-500 rounded-lg flex items-center justify-center">
-                      <span className="text-2xl">🎫</span>
-                    </div>
+                  <div className="flex justify-between items-start mb-4">
                     <div>
-                      <div className="font-bold text-gray-900">{stamp.name}</div>
-                      <div className="text-sm text-gray-600">
-                        {stamp.organization}
+                      <h3 className="text-xl font-bold text-gray-900 mb-1">
+                        {event.title}
+                      </h3>
+                      <p className="text-sm text-gray-500">ID: {event.eventId}</p>
+                    </div>
+                    {event.satisfactionScore !== null && (
+                      <div className="bg-yellow-100 text-yellow-800 px-4 py-2 rounded-lg font-bold">
+                        ★ {event.satisfactionScore.toFixed(1)}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="text-center">
+                      <div className="text-gray-600 text-sm mb-1">参加者数</div>
+                      <div className="text-2xl font-bold text-green-600">
+                        {event.participantCount}
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-gray-600 text-sm mb-1">スタンプ数</div>
+                      <div className="text-2xl font-bold text-blue-600">
+                        {event.stampCount}
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-gray-600 text-sm mb-1">満足度</div>
+                      <div className="text-2xl font-bold text-purple-600">
+                        {event.satisfactionScore !== null ? (
+                          `${event.satisfactionScore.toFixed(1)}`
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
                       </div>
                     </div>
                   </div>
-                  <div className="text-sm text-gray-500 font-medium">
-                    {new Date(stamp.issuedAt).toLocaleDateString("ja-JP", {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric"
-                    })}
-                  </div>
                 </div>
-              ))
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </OrgLayout>
   );
 }
-

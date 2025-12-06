@@ -63,11 +63,28 @@ npm run dev
 
 ブラウザで http://localhost:5173 を開く
 
-### 2. 動作確認
+### 2. バックエンドの起動
+
+```bash
+# DynamoDB Local を Docker で起動
+docker run -d \
+  --name dynamodb \
+  -p 8000:8000 \
+  -v $(pwd)/dynamodb/data:/home/dynamodblocal/data \
+  amazon/dynamodb-local
+
+# バックエンドサーバーの起動
+cd backend
+npm install
+npm run dev
+```
+
+### 3. 動作確認
 
 1. **入り口画面**で「学生」または「企業」を選択
-2. **学生向け**: スタンプコレクション、NFT 証明書、ゼロ知識証明を確認
+2. **学生向け**: ユーザー登録・ログイン、スタンプコレクション、NFT 証明書、ゼロ知識証明を確認
 3. **企業向け**: ダッシュボードからスタンプを発行
+  -jar DynamoDBLocal.jar -sharedDb -dbPath /home/dynamodblocal/data
 
 ---
 

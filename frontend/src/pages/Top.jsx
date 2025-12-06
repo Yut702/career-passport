@@ -1,16 +1,16 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-export default function UserTypeSelection() {
+export default function Top() {
   const navigate = useNavigate();
   const [selectedType, setSelectedType] = useState(null);
 
   const handleSelect = (type) => {
     setSelectedType(type);
     if (type === "student") {
-      navigate("/student");
+      navigate("/usr-signin");
     } else if (type === "org") {
-      navigate("/org");
+      navigate("/org-login");
     }
   };
 
@@ -63,7 +63,7 @@ export default function UserTypeSelection() {
                 </div>
                 <div className="flex items-center justify-center space-x-2">
                   <span>✅</span>
-                  <span>進捗の確認</span>
+                  <span>ゼロ知識証明（VC）</span>
                 </div>
               </div>
               <button className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all">
@@ -100,7 +100,7 @@ export default function UserTypeSelection() {
                 </div>
                 <div className="flex items-center justify-center space-x-2">
                   <span>✅</span>
-                  <span>ユーザー管理</span>
+                  <span>ダッシュボード</span>
                 </div>
               </div>
               <button className="w-full bg-gradient-to-r from-purple-600 to-purple-700 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all">
@@ -118,4 +118,3 @@ export default function UserTypeSelection() {
     </div>
   );
 }
-
