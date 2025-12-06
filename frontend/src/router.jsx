@@ -3,10 +3,8 @@ import Top from "./pages/Top"
 import Login from "./pages/Login";
 import OrgLogin from "./pages/OrgLogin";
 import UsrSignUp from "./pages/UsrSignUp";
-import UsrSignIn from "./pages/UsrSignIn";
 import UsrInitStng from "./pages/UsrInitStng";
 import UsrHome from "./pages/UsrHome";
-import UserTypeSelection from "./pages/UserTypeSelection";
 import StudentLayout from "./components/StudentLayout";
 import OrgLayout from "./components/OrgLayout";
 import Home from "./pages/Home";
@@ -24,11 +22,10 @@ export default function RouterComponent() {
         {/* Top/入り口画面 */}
         <Route path="/" element={<Top />} />
         <Route path="/top" element={<Top />} />
-        <Route path="/user-type" element={<UserTypeSelection />} />
 
         {/* ユーザー向けルート */}
         <Route path="/usr-signup" element={<UsrSignUp />} />
-        <Route path="/usr-signin" element={<UsrSignIn />} />
+        <Route path="/usr-signin" element={<Login />} />
         <Route path="/usr-init" element={<UsrInitStng />} />        
         <Route path="/usr-home" element={<UsrHome />} />
 
