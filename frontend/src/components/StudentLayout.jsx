@@ -29,7 +29,7 @@ export default function StudentLayout({ children }) {
                 </div>
               </Link>
             </div>
-            <div className="flex items-center space-x-6">
+            <div className="flex items-center space-x-4">
               <Link
                 to="/student"
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -53,7 +53,7 @@ export default function StudentLayout({ children }) {
               <Link
                 to="/student/nfts"
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  location.pathname === "/student/nfts"
+                  location.pathname === "/student/nfts" || location.pathname.startsWith("/student/nft/")
                     ? "bg-blue-100 text-blue-700"
                     : "text-gray-700 hover:bg-gray-100"
                 }`}
@@ -61,14 +61,44 @@ export default function StudentLayout({ children }) {
                 NFT 証明書
               </Link>
               <Link
-                to="/student/zk-proof"
+                to="/student/events"
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  location.pathname === "/student/zk-proof"
+                  location.pathname.startsWith("/student/events")
                     ? "bg-blue-100 text-blue-700"
                     : "text-gray-700 hover:bg-gray-100"
                 }`}
               >
-                ゼロ知識証明
+                イベント
+              </Link>
+              <Link
+                to="/student/job-conditions"
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  location.pathname.startsWith("/student/job")
+                    ? "bg-blue-100 text-blue-700"
+                    : "text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                求人
+              </Link>
+              <Link
+                to="/student/messages"
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  location.pathname === "/student/messages"
+                    ? "bg-blue-100 text-blue-700"
+                    : "text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                メッセージ
+              </Link>
+              <Link
+                to="/student/settings"
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  location.pathname === "/student/settings"
+                    ? "bg-blue-100 text-blue-700"
+                    : "text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                VC管理・ZKP
               </Link>
               <WalletConnect />
               <button

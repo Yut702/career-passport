@@ -1,5 +1,4 @@
 import { useState } from "react";
-import OrgLayout from "../components/OrgLayout";
 import { Link, useNavigate } from "react-router-dom";
 import { storage } from "../lib/storage";
 
@@ -36,7 +35,6 @@ export default function OrgStampIssuance() {
   };
 
   return (
-    <OrgLayout>
       <div className="max-w-2xl mx-auto">
         <Link
           to="/org"
@@ -143,6 +141,5 @@ export default function OrgStampIssuance() {
           </form>
         </div>
       </div>
-    </OrgLayout>
   );
 }
