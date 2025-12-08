@@ -25,7 +25,7 @@ export default function UserTypeSelection() {
             </div>
             <div className="text-left">
               <h1 className="text-5xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                CareerPassport
+                Non-Fungible Career
               </h1>
               <p className="text-gray-600 text-lg">キャリアパスポート</p>
             </div>

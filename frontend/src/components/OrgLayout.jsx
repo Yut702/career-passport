@@ -22,7 +22,7 @@ export default function OrgLayout({ children }) {
                 </div>
                 <div>
                   <div className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-                    CareerPassport
+                    Non-Fungible Career
                   </div>
                   <div className="text-xs text-gray-500">企業向け</div>
                 </div>
