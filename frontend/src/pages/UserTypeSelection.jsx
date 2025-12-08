@@ -7,11 +7,7 @@ export default function UserTypeSelection() {
 
   const handleSelect = (type) => {
     setSelectedType(type);
-    if (type === "student") {
-      navigate("/student");
-    } else if (type === "org") {
-      navigate("/org");
-    }
+    // 選択のみで、実際の遷移はボタンで行う
   };
 
   return (
@@ -25,12 +21,14 @@ export default function UserTypeSelection() {
             </div>
             <div className="text-left">
               <h1 className="text-5xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                CareerPassport
+                Non-Fungible Career
               </h1>
               <p className="text-gray-600 text-lg">キャリアパスポート</p>
             </div>
           </div>
-          <p className="text-gray-700 text-xl">ログインタイプを選択してください</p>
+          <p className="text-gray-700 text-xl">
+            ログインタイプを選択してください
+          </p>
         </div>
 
         {/* 選択カード */}
@@ -48,7 +46,9 @@ export default function UserTypeSelection() {
               <div className="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-blue-400 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
                 <span className="text-5xl">👤</span>
               </div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-3">ユーザー</h2>
+              <h2 className="text-3xl font-bold text-gray-900 mb-3">
+                ユーザー
+              </h2>
               <p className="text-gray-600 mb-6">
                 スタンプを集めて、NFT証明書を取得しましょう
               </p>
@@ -66,8 +66,11 @@ export default function UserTypeSelection() {
                   <span>進捗の確認</span>
                 </div>
               </div>
-              <button className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all">
-                ユーザーとしてログイン
+              <button
+                onClick={() => navigate("/student")}
+                className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all"
+              >
+                個人ログイン（ウォレット接続）
               </button>
             </div>
           </div>
@@ -103,8 +106,11 @@ export default function UserTypeSelection() {
                   <span>ユーザー管理</span>
                 </div>
               </div>
-              <button className="w-full bg-gradient-to-r from-purple-600 to-purple-700 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all">
-                企業としてログイン
+              <button
+                onClick={() => navigate("/org")}
+                className="w-full bg-gradient-to-r from-purple-600 to-purple-700 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all"
+              >
+                企業ログイン（ウォレット接続）
               </button>
             </div>
           </div>
@@ -118,4 +124,3 @@ export default function UserTypeSelection() {
     </div>
   );
 }
-

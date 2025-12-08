@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import OrgLayout from "../components/OrgLayout";
 import { Link } from "react-router-dom";
 import { storage } from "../lib/storage";
 
@@ -45,33 +44,28 @@ export default function OrgDashboard() {
 
   if (loading) {
     return (
-      <OrgLayout>
-        <div className="flex justify-center items-center h-64">
-          <div className="text-gray-600">読み込み中...</div>
-        </div>
-      </OrgLayout>
+      <div className="flex justify-center items-center h-64">
+        <div className="text-gray-600">読み込み中...</div>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <OrgLayout>
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-          <div className="text-red-800 font-semibold mb-2">エラー</div>
-          <div className="text-red-600">{error}</div>
-          <button
-            onClick={() => window.location.reload()}
-            className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-          >
-            再読み込み
-          </button>
-        </div>
-      </OrgLayout>
+      <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+        <div className="text-red-800 font-semibold mb-2">エラー</div>
+        <div className="text-red-600">{error}</div>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+        >
+          再読み込み
+        </button>
+      </div>
     );
   }
 
   return (
-    <OrgLayout>
       <div className="space-y-8">
         <div className="flex justify-between items-center">
           <div>
@@ -169,7 +163,6 @@ export default function OrgDashboard() {
           </div>
         </div>
       </div>
-    </OrgLayout>
   );
 }
 

@@ -17,7 +17,7 @@ export default function Layout({ children }) {
                 </div>
                 <div>
                   <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                    CareerPassport
+                    Non-Fungible Career
                   </div>
                   <div className="text-xs text-gray-500">キャリアパスポート</div>
                 </div>

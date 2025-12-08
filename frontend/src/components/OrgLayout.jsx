@@ -1,4 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import WalletConnect from "./WalletConnect";
 
 export default function OrgLayout({ children }) {
   const location = useLocation();
@@ -22,13 +23,13 @@ export default function OrgLayout({ children }) {
                 </div>
                 <div>
                   <div className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-                    CareerPassport
+                    Non-Fungible Career
                   </div>
                   <div className="text-xs text-gray-500">企業向け</div>
                 </div>
               </Link>
             </div>
-            <div className="flex items-center space-x-6">
+            <div className="flex items-center space-x-4">
               <Link
                 to="/org"
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -49,6 +50,57 @@ export default function OrgLayout({ children }) {
               >
                 スタンプ発行
               </Link>
+              <Link
+                to="/org/events"
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  location.pathname.startsWith("/org/events")
+                    ? "bg-purple-100 text-purple-700"
+                    : "text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                イベント
+              </Link>
+              <Link
+                to="/org/nfts"
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  location.pathname.startsWith("/org/nft")
+                    ? "bg-purple-100 text-purple-700"
+                    : "text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                NFT一覧
+              </Link>
+              <Link
+                to="/org/recruitment-conditions"
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  location.pathname.startsWith("/org/recruitment") || location.pathname.startsWith("/org/candidate") || location.pathname.startsWith("/org/matched-candidates")
+                    ? "bg-purple-100 text-purple-700"
+                    : "text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                採用
+              </Link>
+              <Link
+                to="/org/messages"
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  location.pathname === "/org/messages"
+                    ? "bg-purple-100 text-purple-700"
+                    : "text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                メッセージ
+              </Link>
+              <Link
+                to="/org/settings"
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  location.pathname === "/org/settings"
+                    ? "bg-purple-100 text-purple-700"
+                    : "text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                設定
+              </Link>
+              <WalletConnect />
               <button
                 onClick={handleLogout}
                 className="px-4 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors"
