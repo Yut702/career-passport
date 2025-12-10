@@ -1,49 +1,201 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import StampCard from "../components/StampCard";
 import ProgressBar from "../components/ProgressBar";
 import NFTCard from "../components/NFTCard";
-import { storage } from "../lib/storage";
+import { useContracts } from "../hooks/useContracts";
+import { useWallet } from "../hooks/useWallet";
 
+/**
+ * マイページ（ユーザー向け）
+ *
+ * ブロックチェーンからスタンプを読み込み、NFT発行機能を提供します。
+ * 同一組織から3つ以上のスタンプがある場合、NFT証明書に交換できます。
+ */
 export default function MyPage() {
+  const { nftContract, stampManagerContract, isReady } = useContracts();
+  const { account, isConnected } = useWallet();
   const [nfts, setNfts] = useState([]);
   const [organizationGroups, setOrganizationGroups] = useState({});
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [minting, setMinting] = useState(false);
+  const [mintingOrg, setMintingOrg] = useState(null);
 
+  /**
+   * ブロックチェーンからスタンプを読み込む
+   */
+  const loadStamps = useCallback(async () => {
+    if (!stampManagerContract || !account) return;
+
+    try {
+      // ブロックチェーンからユーザーのスタンプを取得
+      const userStamps = await stampManagerContract.getUserStamps(account);
+
+      // スタンプデータを整形（SolidityのstructをJavaScriptオブジェクトに変換）
+      const formattedStamps = userStamps.map((stamp) => ({
+        id: stamp.id.toString(),
+        name: stamp.name,
+        organization: stamp.organization,
+        category: stamp.category,
+        issuedAt: new Date(Number(stamp.issuedAt) * 1000)
+          .toISOString()
+          .split("T")[0],
+      }));
+
+      // 企業別にグループ化
+      const groups = {};
+      formattedStamps.forEach((stamp) => {
+        if (!groups[stamp.organization]) {
+          groups[stamp.organization] = [];
+        }
+        groups[stamp.organization].push(stamp);
+      });
+      setOrganizationGroups(groups);
+    } catch (error) {
+      console.error("Error loading stamps:", error);
+      setError("スタンプの読み込みに失敗しました");
+    }
+  }, [stampManagerContract, account]);
+
+  /**
+   * ブロックチェーンからNFTを読み込む
+   */
+  const loadNFTs = useCallback(async () => {
+    if (!nftContract || !account) return;
+
+    try {
+      // 総供給量を取得
+      const totalSupply = await nftContract.getTotalSupply();
+
+      // すべてのNFTを確認して、ユーザーが所有するものを取得
+      const userNFTs = [];
+      for (let i = 0; i < Number(totalSupply); i++) {
+        try {
+          const owner = await nftContract.ownerOf(i);
+          if (owner.toLowerCase() === account.toLowerCase()) {
+            const tokenURI = await nftContract.tokenURI(i);
+            const tokenName = await nftContract.getTokenName(i);
+            const rarity = await nftContract.getTokenRarity(i);
+            const organizations = await nftContract.getTokenOrganizations(i);
+
+            userNFTs.push({
+              id: i.toString(),
+              tokenId: i,
+              name: tokenName,
+              uri: tokenURI,
+              rarity,
+              organizations: organizations,
+            });
+          }
+        } catch {
+          // トークンが存在しない場合はスキップ
+          continue;
+        }
+      }
+
+      setNfts(userNFTs);
+    } catch (error) {
+      console.error("Error loading NFTs:", error);
+    }
+  }, [nftContract, account]);
+
+  /**
+   * データを読み込む
+   */
   useEffect(() => {
     const loadData = async () => {
-      try {
-        storage.initMockData();
-        const allStamps = storage.getStamps();
-        const allNFTs = storage.getNFTs();
-
-        console.log("MyPage loaded data:", { allStamps, allNFTs });
-
-        setNfts(allNFTs || []);
-
-        // 企業別にグループ化
-        const groups = {};
-        if (allStamps && allStamps.length > 0) {
-          allStamps.forEach((stamp) => {
-            if (!groups[stamp.organization]) {
-              groups[stamp.organization] = [];
-            }
-            groups[stamp.organization].push(stamp);
-          });
-        }
-        setOrganizationGroups(groups);
+      if (!isConnected || !isReady || !account) {
         setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        await Promise.all([loadStamps(), loadNFTs()]);
       } catch (err) {
         console.error("Error loading data:", err);
         setError("データの読み込みに失敗しました");
+      } finally {
         setLoading(false);
       }
     };
 
     loadData();
-  }, []);
+  }, [isConnected, isReady, account, loadStamps, loadNFTs]);
 
+  /**
+   * NFT発行可能かチェック
+   *
+   * @param {string} org - 組織名
+   * @param {number} count - スタンプ数
+   * @returns {boolean} NFT発行可能かどうか
+   */
   const canMintNFT = (org, count) => count >= 3;
+
+  /**
+   * NFTを発行する関数
+   *
+   * @param {string} organization - 組織名
+   */
+  const handleMintNFT = async (organization) => {
+    if (!nftContract || !account) return;
+
+    setMinting(true);
+    setMintingOrg(organization);
+    setError(null);
+
+    try {
+      // NFT を発行
+      // mint(address to, string memory tokenURI, string memory name, string memory rarity, string[] memory organizations)
+      const tx = await nftContract.mint(
+        account,
+        `https://example.com/metadata/${Date.now()}.json`,
+        `${organization} 優秀な成績証明書`,
+        "Rare",
+        [organization]
+      );
+
+      // トランザクションの確認を待つ
+      await tx.wait();
+
+      // 成功メッセージ
+      alert("NFT が正常に発行されました！");
+
+      // データを再読み込み
+      await Promise.all([loadStamps(), loadNFTs()]);
+    } catch (error) {
+      console.error("Error minting NFT:", error);
+
+      let errorMessage = "NFT 発行に失敗しました";
+      if (error.reason) {
+        errorMessage = error.reason;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      setError(errorMessage);
+    } finally {
+      setMinting(false);
+      setMintingOrg(null);
+    }
+  };
+
+  // ウォレットが接続されていない場合の表示
+  if (!isConnected) {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <div className="bg-red-50 border-2 border-red-200 rounded-xl p-6 text-center">
+          <p className="text-red-600 font-semibold text-lg">
+            ウォレットを接続してください
+          </p>
+          <p className="text-red-500 mt-2">
+            スタンプを確認するには、MetaMask
+            などのウォレットを接続する必要があります。
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -53,7 +205,10 @@ export default function MyPage() {
     );
   }
 
-  if (error) {
+  if (
+    (error && !organizationGroups) ||
+    Object.keys(organizationGroups).length === 0
+  ) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-6">
         <div className="text-red-800 font-semibold mb-2">エラー</div>
@@ -133,8 +288,14 @@ export default function MyPage() {
                   ))}
                 </div>
                 {canMint && (
-                  <button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300">
-                    🏆 NFT 証明書に交換する
+                  <button
+                    onClick={() => handleMintNFT(org)}
+                    disabled={minting || !isReady || mintingOrg === org}
+                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {minting && mintingOrg === org
+                      ? "⏳ 発行中..."
+                      : "🏆 NFT 証明書に交換する"}
                   </button>
                 )}
               </div>
@@ -142,6 +303,14 @@ export default function MyPage() {
           })
         )}
       </div>
+
+      {/* エラーメッセージ */}
+      {error && (
+        <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4">
+          <p className="text-red-700 font-semibold">エラー</p>
+          <p className="text-red-600 text-sm mt-1">{error}</p>
+        </div>
+      )}
 
       {/* 取得したNFT証明書 */}
       {nfts.length > 0 && (
