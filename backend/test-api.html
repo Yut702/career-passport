@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web3 Backend API テスター</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1 { color: #333; margin-top: 0; }
+        h2 { color: #666; border-bottom: 2px solid #007bff; padding-bottom: 8px; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        .success { background: #28a745; }
+        .success:hover { background: #218838; }
+        input, textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin: 5px 0;
+            font-family: monospace;
+        }
+        textarea { min-height: 80px; }
+        .response {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 12px;
+            margin-top: 10px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        .status.ok { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <h1>🧪 Web3 Backend API テスター</h1>
+    
+    <div class="container">
+        <h2>⚙️ 設定</h2>
+        <label>API Base URL:</label>
+        <input type="text" id="baseUrl" value="http://localhost:3001/api" />
+        <button onclick="testHealth()">ヘルスチェック</button>
+        <div id="healthStatus"></div>
+    </div>
+
+    <div class="grid">
+        <!-- スタンプAPI -->
+        <div class="container">
+            <h2>🎫 スタンプAPI</h2>
+            
+            <h3>スタンプ一覧取得</h3>
+            <label>ウォレットアドレス:</label>
+            <input type="text" id="walletForStamps" value="0x1234567890123456789012345678901234567890" />
+            <button onclick="getStamps()">取得</button>
+            <div id="stampsResponse" class="response"></div>
+
+            <h3>スタンプ発行</h3>
+            <label>ユーザーウォレット:</label>
+            <input type="text" id="userWallet" value="0x1234567890123456789012345678901234567890" />
+            <label>組織アドレス:</label>
+            <input type="text" id="orgAddress" value="0xabcdef1234567890abcdef1234567890abcdef12" />
+            <label>カテゴリ:</label>
+            <input type="text" id="category" value="internship" />
+            <label>画像URL:</label>
+            <input type="text" id="imageUrl" value="https://example.com/stamp.png" />
+            <label>説明:</label>
+            <textarea id="description">Summer Internship 2025</textarea>
+            <button class="success" onclick="issueStamp()">発行</button>
+            <div id="issueResponse" class="response"></div>
+        </div>
+
+        <!-- NFT API -->
+        <div class="container">
+            <h2>🏆 NFT API</h2>
+            
+            <h3>NFT一覧取得</h3>
+            <label>ウォレットアドレス:</label>
+            <input type="text" id="walletForNFTs" value="0x1234567890123456789012345678901234567890" />
+            <button onclick="getNFTs()">取得</button>
+            <div id="nftsResponse" class="response"></div>
+
+            <h3>NFT生成（スタンプ3つ必要）</h3>
+            <label>オーナーウォレット:</label>
+            <input type="text" id="ownerWallet" value="0x1234567890123456789012345678901234567890" />
+            <label>組織アドレス:</label>
+            <input type="text" id="nftOrgAddress" value="0xabcdef1234567890abcdef1234567890abcdef12" />
+            <button class="success" onclick="mintNFT()">NFT生成</button>
+            <div id="mintResponse" class="response"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>📅 イベントAPI</h2>
+        <div class="grid">
+            <div>
+                <h3>イベント一覧取得</h3>
+                <button onclick="getEvents()">取得</button>
+                <div id="eventsResponse" class="response"></div>
+            </div>
+            <div>
+                <h3>イベント作成</h3>
+                <label>イベントID:</label>
+                <input type="text" id="eventId" value="event_tech2025" />
+                <label>イベント名:</label>
+                <input type="text" id="eventName" value="Tech Summit 2025" />
+                <label>開催日:</label>
+                <input type="text" id="eventDate" value="2025-12-20" />
+                <label>場所:</label>
+                <input type="text" id="location" value="Tokyo" />
+                <button class="success" onclick="createEvent()">作成</button>
+                <div id="createEventResponse" class="response"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function getBaseUrl() {
+            return document.getElementById('baseUrl').value;
+        }
+
+        async function apiCall(method, endpoint, body = null) {
+            const url = `${getBaseUrl()}${endpoint}`;
+            const options = {
+                method,
+                headers: { 'Content-Type': 'application/json' }
+            };
+            if (body) options.body = JSON.stringify(body);
+            
+            try {
+                const response = await fetch(url, options);
+                const data = await response.json();
+                return { ok: response.ok, data };
+            } catch (error) {
+                return { ok: false, error: error.message };
+            }
+        }
+
+        function displayResponse(elementId, result) {
+            const el = document.getElementById(elementId);
+            if (result.ok) {
+                el.innerHTML = `<span class="status ok">SUCCESS</span><pre>${JSON.stringify(result.data, null, 2)}</pre>`;
+            } else {
+                el.innerHTML = `<span class="status error">ERROR</span><pre>${result.error || JSON.stringify(result.data, null, 2)}</pre>`;
+            }
+        }
+
+        async function testHealth() {
+            const result = await apiCall('GET', '/../health');
+            displayResponse('healthStatus', result);
+        }
+
+        async function getStamps() {
+            const wallet = document.getElementById('walletForStamps').value;
+            const result = await apiCall('GET', `/stamps/user/${wallet}`);
+            displayResponse('stampsResponse', result);
+        }
+
+        async function issueStamp() {
+            const body = {
+                userWalletAddress: document.getElementById('userWallet').value,
+                organizationAddress: document.getElementById('orgAddress').value,
+                category: document.getElementById('category').value,
+                imageUrl: document.getElementById('imageUrl').value,
+                description: document.getElementById('description').value,
+                certificateCategory: document.getElementById('category').value
+            };
+            const result = await apiCall('POST', '/stamps/issue', body);
+            displayResponse('issueResponse', result);
+        }
+
+        async function getNFTs() {
+            const wallet = document.getElementById('walletForNFTs').value;
+            const result = await apiCall('GET', `/nfts/user/${wallet}`);
+            displayResponse('nftsResponse', result);
+        }
+
+        async function mintNFT() {
+            const body = {
+                ownerWalletAddress: document.getElementById('ownerWallet').value,
+                organizationAddress: document.getElementById('nftOrgAddress').value
+            };
+            const result = await apiCall('POST', '/nfts/mint-from-stamps', body);
+            displayResponse('mintResponse', result);
+        }
+
+        async function getEvents() {
+            const result = await apiCall('GET', '/events');
+            displayResponse('eventsResponse', result);
+        }
+
+        async function createEvent() {
+            const body = {
+                eventId: document.getElementById('eventId').value,
+                organizationAddress: document.getElementById('orgAddress').value,
+                eventName: document.getElementById('eventName').value,
+                eventDescription: 'Test event',
+                eventDate: document.getElementById('eventDate').value,
+                location: document.getElementById('location').value,
+                imageUrl: 'https://example.com/event.png',
+                maxParticipants: 100
+            };
+            const result = await apiCall('POST', '/events', body);
+            displayResponse('createEventResponse', result);
+        }
+
+        // 初期ヘルスチェック
+        window.onload = () => testHealth();
+    </script>
+</body>
+</html>
