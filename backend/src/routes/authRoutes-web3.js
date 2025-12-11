@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { verifyWallet } from "../services/authService.js";
+import { verifyWallet } from "../services/authService-web3.js";
 import { getUserByWallet } from "../lib/dynamo-web3.js";
 
 const router = Router();
