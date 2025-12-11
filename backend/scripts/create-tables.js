@@ -1,3 +1,12 @@
+/**
+ * スタンプ・NFTテーブル作成スクリプト
+ *
+ * 用途: スタンプとNFTのデータを保存するテーブルを作成
+ * 作成テーブル:
+ *   - NonFungibleCareerStamps: スタンプデータ
+ *   - NonFungibleCareerNFTs: NFTデータ
+ * 実行方法: npm run create-tables
+ */
 import AWS from "aws-sdk";
 import dotenv from "dotenv";
 dotenv.config();

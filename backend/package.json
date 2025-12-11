@@ -13,7 +13,6 @@
     "create-table": "node scripts/create-table.js",
     "create-tables": "node scripts/create-tables.js",
     "create-api-tables": "node scripts/create-api-tables.js",
-    "seed": "node scripts/seed-user.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -21,11 +20,9 @@
   "license": "ISC",
   "dependencies": {
     "aws-sdk": "^2.1692.0",
-    "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
-    "express": "^5.1.0",
-    "jsonwebtoken": "^9.0.2"
+    "express": "^5.1.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.11"

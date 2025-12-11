@@ -1,3 +1,13 @@
+/**
+ * API用テーブル作成スクリプト
+ *
+ * 用途: バックエンドAPIで使用するテーブルを作成
+ * 作成テーブル:
+ *   - NonFungibleCareerEventApplications: イベント応募データ
+ *   - NonFungibleCareerMessages: メッセージデータ
+ *   - NonFungibleCareerMatches: マッチングデータ
+ * 実行方法: npm run create-api-tables
+ */
 import AWS from "aws-sdk";
 import dotenv from "dotenv";
 dotenv.config();

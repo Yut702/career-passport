@@ -1,3 +1,9 @@
+/**
+ * ユーザーテーブル作成スクリプト
+ *
+ * 用途: 認証用のユーザーテーブル（NonFungibleCareerUsers）を作成
+ * 実行方法: npm run create-table
+ */
 import AWS from "aws-sdk";
 import dotenv from "dotenv";
 dotenv.config();
