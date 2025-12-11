@@ -30,12 +30,12 @@ fi
 CHAIN_ID=${CHAIN_ID:-31337}
 
 # アドレスを取得
-NFT_ADDRESS=$(jq -r ".[\"$CHAIN_ID\"].CareerPassportNFT" "$DEPLOYED_JSON")
+NFT_ADDRESS=$(jq -r ".[\"$CHAIN_ID\"].NonFungibleCareerNFT" "$DEPLOYED_JSON")
 STAMP_ADDRESS=$(jq -r ".[\"$CHAIN_ID\"].StampManager" "$DEPLOYED_JSON")
 
 # アドレスが取得できたか確認
 if [ "$NFT_ADDRESS" == "null" ] || [ -z "$NFT_ADDRESS" ]; then
-    echo "警告: CareerPassportNFT のアドレスが見つかりませんでした"
+    echo "警告: NonFungibleCareerNFT のアドレスが見つかりませんでした"
     NFT_ADDRESS=""
 fi
 

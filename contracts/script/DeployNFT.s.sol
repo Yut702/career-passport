@@ -2,12 +2,12 @@
 pragma solidity ^0.8.20;
 
 import {Script} from "forge-std/Script.sol";
-import {CareerPassportNFT} from "../src/CareerPassportNFT.sol";
+import {NonFungibleCareerNFT} from "../src/NonFungibleCareerNFT.sol";
 
 contract DeployNFT is Script {
-    function run() external returns (CareerPassportNFT) {
+    function run() external returns (NonFungibleCareerNFT) {
         vm.startBroadcast();
-        CareerPassportNFT nft = new CareerPassportNFT();
+        NonFungibleCareerNFT nft = new NonFungibleCareerNFT();
         vm.stopBroadcast();
         return nft;
     }

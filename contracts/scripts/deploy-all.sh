@@ -17,8 +17,8 @@ echo "RPC URL: $RPC_URL"
 echo "Chain ID: $CHAIN_ID"
 echo ""
 
-# CareerPassportNFT をデプロイ
-echo "1. CareerPassportNFT をデプロイ中..."
+# NonFungibleCareerNFT をデプロイ
+echo "1. NonFungibleCareerNFT をデプロイ中..."
 forge script script/DeployNFT.s.sol:DeployNFT \
   --rpc-url "$RPC_URL" \
   --broadcast \

@@ -4,14 +4,14 @@ pragma solidity ^0.8.20;
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract CareerPassportNFT is ERC721, Ownable {
+contract NonFungibleCareerNFT is ERC721, Ownable {
     uint256 private _tokenIdCounter;                    // トークンIDカウンター（発行時にインクリメント）
     mapping(uint256 => string) private _tokenUrIs;     // メタデータURI（IPFSやHTTP URL）
     mapping(uint256 => string) private _tokenNames;     // トークン名
     mapping(uint256 => string) private _tokenRarities;  // レアリティ（例: "Common", "Rare", "Epic"）
     mapping(uint256 => string[]) private _tokenOrganizations; // 関連組織の配列
 
-    constructor() ERC721("CareerPassportNFT", "CPNFT") Ownable(msg.sender) {}
+    constructor() ERC721("NonFungibleCareerNFT", "NFCNFT") Ownable(msg.sender) {}
     // NFTの名前とシンボルを設定し、デプロイしたアドレスを所有者に設定
 
     // NFT発行（所有者のみ実行可能）

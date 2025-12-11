@@ -1,8 +1,22 @@
 import { useState, useEffect, useCallback } from "react";
 import { ethers } from "ethers";
 import { useWallet } from "./useWallet";
-import CareerPassportNFTABI from "../abis/CareerPassportNFT.json";
+import NonFungibleCareerNFTABI from "../abis/NonFungibleCareerNFT.json";
 import StampManagerABI from "../abis/StampManager.json";
+
+// ABIがデフォルトエクスポートの場合に備えて、配列形式を保証
+const getABI = (abi) => {
+  if (Array.isArray(abi)) {
+    return abi;
+  }
+  if (abi && abi.default && Array.isArray(abi.default)) {
+    return abi.default;
+  }
+  if (abi && abi.abi && Array.isArray(abi.abi)) {
+    return abi.abi;
+  }
+  return abi;
+};
 
 /**
  * コントラクトインスタンスを管理するカスタムフック
@@ -11,7 +25,7 @@ import StampManagerABI from "../abis/StampManager.json";
  * トランザクション送信や読み取り操作に使用できるようにします。
  *
  * @returns {Object} コントラクトインスタンスと状態
- * @returns {ethers.Contract|null} nftContract - CareerPassportNFT コントラクトインスタンス
+ * @returns {ethers.Contract|null} nftContract - NonFungibleCareerNFT コントラクトインスタンス
  * @returns {ethers.Contract|null} stampManagerContract - StampManager コントラクトインスタンス
  * @returns {boolean} isLoading - コントラクト読み込み中の状態
  * @returns {boolean} isReady - すべてのコントラクトが読み込み完了したかどうか
@@ -36,7 +50,7 @@ export function useContracts() {
   // useWallet フックから接続状態を取得
   const { signer, isConnected } = useWallet();
 
-  // CareerPassportNFT コントラクトのインスタンス
+  // NonFungibleCareerNFT コントラクトのインスタンス
   const [nftContract, setNftContract] = useState(null);
   // StampManager コントラクトのインスタンス
   const [stampManagerContract, setStampManagerContract] = useState(null);
@@ -68,16 +82,18 @@ export function useContracts() {
         throw new Error("コントラクトアドレスが設定されていません");
       }
 
-      // CareerPassportNFT コントラクトインスタンスを作成
+      // NonFungibleCareerNFT コントラクトインスタンスを作成
       // 第1引数: コントラクトアドレス
       // 第2引数: ABI（Application Binary Interface）
       // 第3引数: サインアー（トランザクション署名に使用）
-      const nft = new ethers.Contract(nftAddress, CareerPassportNFTABI, signer);
+      const nftABI = getABI(NonFungibleCareerNFTABI);
+      const nft = new ethers.Contract(nftAddress, nftABI, signer);
 
       // StampManager コントラクトインスタンスを作成
+      const stampManagerABI = getABI(StampManagerABI);
       const stampManager = new ethers.Contract(
         stampManagerAddress,
-        StampManagerABI,
+        stampManagerABI,
         signer
       );
 
@@ -117,7 +133,7 @@ export function useContracts() {
    * コンポーネントで使用できるコントラクトインスタンスと状態を返します。
    */
   return {
-    nftContract, // CareerPassportNFT コントラクトインスタンス（null の場合は未読み込み）
+    nftContract, // NonFungibleCareerNFT コントラクトインスタンス（null の場合は未読み込み）
     stampManagerContract, // StampManager コントラクトインスタンス（null の場合は未読み込み）
     isLoading, // コントラクト読み込み中の状態（true: 読み込み中, false: 読み込み完了/未読み込み）
     isReady: !!nftContract && !!stampManagerContract, // すべてのコントラクトが読み込み完了したかどうか

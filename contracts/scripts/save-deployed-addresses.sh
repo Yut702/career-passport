@@ -26,18 +26,18 @@ if ! command -v jq &> /dev/null; then
     exit 1
 fi
 
-# CareerPassportNFT のアドレスを取得
+# NonFungibleCareerNFT のアドレスを取得
 NFT_BROADCAST_FILE="broadcast/DeployNFT.s.sol/${CHAIN_ID}/run-latest.json"
 if [ -f "$NFT_BROADCAST_FILE" ]; then
-    NFT_ADDRESS=$(jq -r '.transactions[] | select(.contractName == "CareerPassportNFT") | .contractAddress' "$NFT_BROADCAST_FILE" | head -1)
+    NFT_ADDRESS=$(jq -r '.transactions[] | select(.contractName == "NonFungibleCareerNFT") | .contractAddress' "$NFT_BROADCAST_FILE" | head -1)
     if [ -n "$NFT_ADDRESS" ] && [ "$NFT_ADDRESS" != "null" ]; then
-        echo "CareerPassportNFT アドレスを取得: $NFT_ADDRESS"
+        echo "NonFungibleCareerNFT アドレスを取得: $NFT_ADDRESS"
         # jq を使用して JSON を更新
         jq --arg chain_id "$CHAIN_ID" --arg address "$NFT_ADDRESS" \
-           '.[$chain_id].CareerPassportNFT = $address' "$DEPLOYED_JSON" > "${DEPLOYED_JSON}.tmp" && \
+           '.[$chain_id].NonFungibleCareerNFT = $address' "$DEPLOYED_JSON" > "${DEPLOYED_JSON}.tmp" && \
            mv "${DEPLOYED_JSON}.tmp" "$DEPLOYED_JSON"
     else
-        echo "警告: CareerPassportNFT のアドレスが見つかりませんでした"
+        echo "警告: NonFungibleCareerNFT のアドレスが見つかりませんでした"
     fi
 else
     echo "警告: $NFT_BROADCAST_FILE が見つかりませんでした"

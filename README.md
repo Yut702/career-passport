@@ -95,7 +95,7 @@ bash scripts/deploy-all.sh
 
 このスクリプトは以下を実行します：
 
-1. `CareerPassportNFT`をデプロイ
+1. `NonFungibleCareerNFT`をデプロイ
 2. `StampManager`をデプロイ
 3. デプロイ済みアドレスを`deployed.json`に自動保存
 4. 環境変数ファイル（`frontend/.env.local`）を自動生成
@@ -210,7 +210,7 @@ Non-Fungible Career は、ユーザー（学生・転職者など）が企業か
 Day 1-2:  UI実装（モックデータ）          ✅ 完了
 Day 3-4:  スマートコントラクト実装         ✅ 完了
 Day 5:    MetaMask 連携                   ✅ 完了
-Day 6:    UI とブロックチェーンの統合      ⏳ 次の作業
+Day 6:    UI とブロックチェーンの統合      ✅ 完了
 Day 7-8:  機能完成とテスト                📋 予定
 Day 9-10: デモ準備と最終調整              📋 予定
 ```
@@ -277,7 +277,7 @@ Day 9-10: デモ準備と最終調整              📋 予定
 **完了した作業**:
 
 - ✅ **Foundry セットアップ** - Foundry のインストールと確認
-- ✅ **コントラクト実装** - CareerPassportNFT と StampManager の実装完了
+- ✅ **コントラクト実装** - NonFungibleCareerNFT と StampManager の実装完了
 - ✅ **ユニットテスト** - コントラクトのユニットテスト作成と実行
 - ✅ **ローカルデプロイ** - Anvil へのデプロイ完了
 - ✅ **デプロイスクリプト** - 自動デプロイスクリプトの作成
@@ -287,7 +287,7 @@ Day 9-10: デモ準備と最終調整              📋 予定
 
 **実装済みコントラクト**:
 
-- `CareerPassportNFT.sol` - NFT 証明書発行コントラクト
+- `NonFungibleCareerNFT.sol` - NFT 証明書発行コントラクト
 
   - mint 機能（所有者のみ）
   - トークン URI、名前、レアリティ、組織情報の管理
@@ -343,7 +343,7 @@ Day 9-10: デモ準備と最終調整              📋 予定
 - ✅ ルール情報の取得（レアリティ、必要企業数、企業あたりスタンプ数）
 - ✅ 全ルール ID の取得
 
-#### CareerPassportNFT（NFT 証明書コントラクト）
+#### NonFungibleCareerNFT（NFT 証明書コントラクト）
 
 **NFT 発行**:
 
@@ -375,7 +375,7 @@ Day 9-10: デモ準備と最終調整              📋 予定
 
 **機能的な制限**:
 
-- ❌ フロントエンドとの自動連携（Day 5-6 で実装予定）
+- ✅ フロントエンドとの自動連携（Day 5-6 で実装完了）
 - ❌ スタンプの削除・変更機能（現状は追加のみ）
 - ❌ ルールの削除機能（無効化のみ可能）
 - ❌ カテゴリベースのルール（組織ベースのみ対応）
@@ -422,7 +422,7 @@ Day 9-10: デモ準備と最終調整              📋 予定
 **スマートコントラクト**:
 
 - ✅ スタンプ発行コントラクト（StampManager）実装完了
-- ✅ NFT 発行コントラクト（CareerPassportNFT）実装完了
+- ✅ NFT 発行コントラクト（NonFungibleCareerNFT）実装完了
 - ✅ ユニットテスト実装完了
 - ✅ ローカルネットワークへのデプロイ完了
 - ✅ コントラクト ABI の取得と保存完了
@@ -448,7 +448,7 @@ Day 9-10: デモ準備と最終調整              📋 予定
 - **スマートコントラクト**: 100% ✅
 - **コントラクトテスト**: 100% ✅
 - **ローカルデプロイ**: 100% ✅
-- **ブロックチェーン連携**: 80% ✅（Day 5 完了、残りのページは Day 6）
+- **ブロックチェーン連携**: 100% ✅（Day 6 完了）
 - **バックエンド API**: 0% ⏳
 - **ZKP 実装**: 10% ⏳（モックのみ）
 - **VC 取得 API**: 0% ⏳（モックのみ）
@@ -908,7 +908,7 @@ Day 9-10: デモ準備と最終調整              📋 予定
 - [x] Foundry のインストール確認
 - [x] `contracts/` ディレクトリの確認
 - [x] 既存コントラクトの確認
-  - [x] `CareerPassportNFT.sol` の確認
+  - [x] `NonFungibleCareerNFT.sol` の確認
   - [x] `StampManager.sol` の確認
 - [x] コントラクトのコンパイル
 - [x] ローカルネットワーク（Anvil）の起動
@@ -935,7 +935,7 @@ Day 9-10: デモ準備と最終調整              📋 予定
 - ✅ 動作するスマートコントラクト
 - ✅ ローカルネットワークでのデプロイ済みコントラクト
 - ✅ コントラクト ABI ファイル
-- ✅ ユニットテスト（CareerPassportNFT、StampManager）
+- ✅ ユニットテスト（NonFungibleCareerNFT、StampManager）
 - ✅ デプロイスクリプト（`deploy-all.sh`）
 - ✅ テストスクリプト（`test-deployment.sh`）
 - ✅ デプロイ済みアドレス記録スクリプト（`save-deployed-addresses.sh`）
@@ -976,17 +976,36 @@ Day 9-10: デモ準備と最終調整              📋 予定
 
 **詳細手順書**: [Day 5 MetaMask 連携ガイド](./DAY5_WALLET_INTEGRATION_GUIDE.md)
 
-### ⏳ Day 6: UI とブロックチェーンの統合（次の作業）
+### ✅ Day 6: UI とブロックチェーンの統合（完了）
 
 **目標**: すべての UI 機能をブロックチェーン経由で動作させる
 
-**作業チェックリスト**:
+**完了した作業**:
 
-- [ ] 残りのページのブロックチェーン連携
-- [ ] ローカルストレージとブロックチェーンの同期
-- [ ] エラーハンドリングの強化
-- [ ] ローディング状態の表示改善
-- [ ] トランザクション状態の可視化
+- ✅ 残りのページのブロックチェーン連携
+  - ✅ `Home.jsx` - ユーザーダッシュボードのブロックチェーン連携
+  - ✅ `MyNFTs.jsx` - NFT 一覧ページのブロックチェーン連携
+  - ✅ `OrgDashboard.jsx` - 企業ダッシュボードのブロックチェーン連携
+  - ✅ `NFTDetail.jsx` - NFT 詳細ページのブロックチェーン連携
+- ✅ ローカルストレージとブロックチェーンの同期
+  - ✅ `sync.js` - 同期ユーティリティの作成
+  - ✅ `useSync.js` - 同期フックの作成
+- ✅ エラーハンドリングの強化
+  - ✅ `transactions.js` - エラーハンドリングユーティリティの拡張
+- ✅ ローディング状態の表示改善
+  - ✅ `Loading.jsx` - 統一されたローディングコンポーネント
+  - ✅ `Skeleton.jsx` - スケルトンローディングコンポーネント
+- ✅ トランザクション状態の可視化
+  - ✅ `TransactionStatus.jsx` - トランザクション状態表示コンポーネント
+
+**成果物**:
+
+- ✅ すべてのページでブロックチェーンからデータを読み込み可能
+- ✅ ローカルストレージとブロックチェーンの同期機能
+- ✅ 統一されたエラーハンドリングとローディング表示
+- ✅ トランザクション状態の可視化
+
+**詳細手順書**: [Day 6 UI とブロックチェーンの統合ガイド](./DAY6_BLOCKCHAIN_INTEGRATION_GUIDE.md)
 
 ---
 
@@ -1100,7 +1119,7 @@ bash scripts/deploy-all.sh
 
 このスクリプトは以下を実行します：
 
-1. `CareerPassportNFT`をデプロイ
+1. `NonFungibleCareerNFT`をデプロイ
 2. `StampManager`をデプロイ
 3. デプロイ済みアドレスを`deployed.json`に自動保存
 4. 環境変数ファイル（`frontend/.env.local`）を自動生成
@@ -1165,16 +1184,16 @@ career-passport/
 │   │   │   └── transactions.js
 │   │   ├── data/          # モックデータ
 │   │   └── abis/          # コントラクト ABI
-│   │       ├── CareerPassportNFT.json
+│   │       ├── NonFungibleCareerNFT.json
 │   │       └── StampManager.json
 │   ├── .env.local         # 環境変数（自動生成）
 │   └── package.json
 ├── contracts/             # スマートコントラクト（Foundry）
 │   ├── src/
-│   │   ├── CareerPassportNFT.sol
+│   │   ├── NonFungibleCareerNFT.sol
 │   │   └── StampManager.sol
 │   ├── test/
-│   │   ├── CareerPassportNFT.t.sol
+│   │   ├── NonFungibleCareerNFT.t.sol
 │   │   └── StampManager.t.sol
 │   ├── script/
 │   │   ├── DeployNFT.s.sol
@@ -1189,6 +1208,7 @@ career-passport/
 ├── DAY3_FOUNDRY_SETUP_GUIDE.md         # Day 3 セットアップガイド
 ├── DAY4_TEST_AND_DEPLOY_GUIDE.md       # Day 4 テストとデプロイガイド
 ├── DAY5_WALLET_INTEGRATION_GUIDE.md    # Day 5 MetaMask 連携ガイド ✅
+├── DAY6_BLOCKCHAIN_INTEGRATION_GUIDE.md # Day 6 UI とブロックチェーンの統合ガイド ✅
 ├── IMPLEMENTATION_GUIDE_10DAYS_DETAILED.md  # 詳細手順書
 └── DESIGN.md                            # 設計書
 ```
@@ -1197,9 +1217,9 @@ career-passport/
 
 ## 🚀 これからの進め方
 
-### 次の作業: Day 5-6 ウォレット連携と統合
+### 次の作業: Day 7-8 機能完成とテスト
 
-**目標**: UI とブロックチェーンを接続し、実際にトランザクションを実行できるようにする
+**目標**: バックエンド API を実装し、すべての機能を完成させる
 
 **今すぐ始める手順**:
 
@@ -1215,28 +1235,20 @@ career-passport/
    cat .env.local
    ```
 
-2. **MetaMask の設定**
+2. **バックエンド API の実装**
 
-   - MetaMask をインストール
-   - ローカルネットワーク（Anvil）を追加
-     - ネットワーク名: `Anvil Local`
-     - RPC URL: `http://localhost:8545`
-     - Chain ID: `31337`
-     - 通貨記号: `ETH`
+   - データベース設計（DynamoDB）
+   - イベント応募 API
+   - メッセージ API
+   - マッチング API
 
-3. **ウォレット接続機能の実装**
+3. **統合テスト**
 
-   - Ethers.js を使用して MetaMask と接続
-   - コントラクトインスタンスの作成
-   - トランザクション送信の実装
-
-4. **UI とブロックチェーンの統合**
-
-   - スタンプ発行機能のブロックチェーン連携
-   - NFT 交換機能のブロックチェーン連携
+   - フロントエンドとバックエンドの統合
    - エラーハンドリングの実装
+   - セキュリティ対策の実装
 
-**詳細な手順**: [実装手順書（詳細）](./IMPLEMENTATION_GUIDE_10DAYS_DETAILED.md) の Day 5-6 セクションを参照
+**詳細な手順**: [実装手順書（Day 1-6）](./IMPLEMENTATION_GUIDE_DAYS1-6.md) を参照
 
 ---
 
@@ -1289,9 +1301,9 @@ career-passport/
 - ✅ **スマートコントラクト**: 実装完了、ローカルネットワークで動作確認済み
 - ✅ **コントラクトテスト**: ユニットテスト実装完了
 - ✅ **デプロイスクリプト**: 自動デプロイとアドレス記録完了
-- ⏳ **ブロックチェーン連携**: 未実装（Day 5-6 で実装予定）
-- ⏳ **データ管理**: ローカルストレージのみ（一時的）
-- ⏳ **ウォレット連携**: 未実装（Day 5-6 で実装予定）
+- ✅ **ブロックチェーン連携**: 実装完了（Day 5-6 で実装完了）
+- ✅ **データ管理**: ローカルストレージとブロックチェーンの同期（Day 6 で実装完了）
+- ✅ **ウォレット連携**: 実装完了（Day 5-6 で実装完了）
 
 ### データ管理の方針
 
@@ -1312,10 +1324,13 @@ career-passport/
 - ブロックチェーン経由でスタンプ発行・NFT 発行機能実装完了
 - ネットワーク設定・エラーハンドリング実装完了
 
-**Phase 3（Day 6）**: ⏳ 次の作業
+**Phase 3（Day 6）**: ✅ 完了
 
-- 残りのページのブロックチェーン連携
-- ローカルストレージとブロックチェーンの同期
+- ✅ 残りのページのブロックチェーン連携
+- ✅ ローカルストレージとブロックチェーンの同期
+- ✅ エラーハンドリングの強化
+- ✅ ローディング状態の表示改善
+- ✅ トランザクション状態の可視化
 
 **Phase 4 以降（Day 7-10）**: 📋 予定
 
@@ -1327,9 +1342,16 @@ career-passport/
 
 ## 📚 参考ドキュメント
 
-- **[実装手順書（詳細）](./IMPLEMENTATION_GUIDE_10DAYS_DETAILED.md)**: 10 日で実装する詳細な手順書
-- **[実装手順書（概要）](./IMPLEMENTATION_GUIDE_10DAYS.md)**: 10 日プランの概要
-- **[設計書](./DESIGN.md)**: システムアーキテクチャ、データフロー、UI/UX 設計
+### 📖 主要ドキュメント
+
+- **[プロジェクト概要書](./PROJECT_OVERVIEW.md)**: プロジェクト全体の概要、アーキテクチャ、設計
+
+### 📋 詳細手順書（Day 別）
+
+- **[Day 3 セットアップガイド](./DAY3_FOUNDRY_SETUP_GUIDE.md)**: Foundry セットアップとコントラクト実装
+- **[Day 4 テストとデプロイガイド](./DAY4_TEST_AND_DEPLOY_GUIDE.md)**: テストとデプロイ手順
+- **[Day 5 MetaMask 連携ガイド](./DAY5_WALLET_INTEGRATION_GUIDE.md)**: ウォレット連携実装
+- **[Day 6 ブロックチェーン統合ガイド](./DAY6_BLOCKCHAIN_INTEGRATION_GUIDE.md)**: UI とブロックチェーンの統合
 
 ---
 
@@ -1365,4 +1387,4 @@ career-passport/
 
 ---
 
-**最終更新**: 2025 年 12 月 10 日（Day 5 完了）
+**最終更新**: 2025 年 12 月 11 日（Day 6 完了）

@@ -2,11 +2,11 @@
 pragma solidity ^0.8.20;
 
 import {Test} from "forge-std/Test.sol";
-import {CareerPassportNFT} from "../src/CareerPassportNFT.sol";
+import {NonFungibleCareerNFT} from "../src/NonFungibleCareerNFT.sol";
 
-contract CareerPassportNFTTest is Test {
+contract NonFungibleCareerNFTTest is Test {
     // Testを継承してテストコントラクトを作成
-    CareerPassportNFT public nft;
+    NonFungibleCareerNFT public nft;
     address public owner;
     address public user;
 
@@ -14,7 +14,7 @@ contract CareerPassportNFTTest is Test {
         // 各テストの前に実行されるセットアップ関数
         owner = address(this);  // テストコントラクト自体が所有者になる
         user = address(0x1);     // テスト用のユーザーアドレス
-        nft = new CareerPassportNFT();  // 新しいNFTコントラクトをデプロイ
+        nft = new NonFungibleCareerNFT();  // 新しいNFTコントラクトをデプロイ
     }
 
     function test_Mint() public {

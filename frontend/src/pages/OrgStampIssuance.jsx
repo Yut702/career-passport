@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useContracts } from "../hooks/useContracts";
 import { useWallet } from "../hooks/useWallet";
+import { storage } from "../lib/storage";
 
 /**
  * スタンプ発行ページ（企業向け）
@@ -62,7 +63,25 @@ export default function OrgStampIssuance() {
       );
 
       // トランザクションの確認を待つ（ブロックに含まれるまで待機）
-      await tx.wait();
+      const receipt = await tx.wait();
+
+      // ローカルストレージにスタンプを保存
+      try {
+        const newStamp = {
+          name: formData.stampName,
+          organization: formData.organization,
+          category: formData.category,
+          issuedAt: new Date().toISOString().split("T")[0],
+          userAddress: formData.userAddress.toLowerCase(), // 小文字に統一
+          contractAddress: stampManagerContract.target,
+          transactionHash: receipt.hash,
+        };
+        storage.addStamp(newStamp);
+        console.log("スタンプをローカルストレージに保存しました:", newStamp);
+      } catch (storageError) {
+        console.warn("ローカルストレージへの保存に失敗しました:", storageError);
+        // ストレージエラーは無視（ブロックチェーンには保存されているため）
+      }
 
       // 成功メッセージを表示
       setSuccess(true);

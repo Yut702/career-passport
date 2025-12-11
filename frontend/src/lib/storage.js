@@ -2,9 +2,25 @@
 import { mockStamps, mockNFTs, mockUser } from "../data/mockData.js";
 
 const STORAGE_KEYS = {
-  STAMPS: "careerpassport_stamps",
-  NFTS: "careerpassport_nfts",
-  USER: "careerpassport_user",
+  STAMPS: "nonfungiblecareer_stamps",
+  NFTS: "nonfungiblecareer_nfts",
+  USER: "nonfungiblecareer_user",
+  CONTRACT_VERSION: "nonfungiblecareer_contract_version", // コントラクトアドレスのバージョン管理
+};
+
+// 現在のコントラクトアドレス（環境変数から取得）
+const getCurrentContractAddresses = () => {
+  return {
+    nftContract: import.meta.env.VITE_NFT_CONTRACT_ADDRESS || "",
+    stampManager: import.meta.env.VITE_STAMP_MANAGER_ADDRESS || "",
+  };
+};
+
+// コントラクトアドレスのバージョンを取得
+const getContractVersion = () => {
+  const addresses = getCurrentContractAddresses();
+  // アドレスを結合してハッシュ化（簡易版）
+  return `${addresses.nftContract}_${addresses.stampManager}`;
 };
 
 export const storage = {
@@ -32,11 +48,16 @@ export const storage = {
     try {
       const stamps = storage.getStamps();
       const newStamp = {
-        id: stamp.id || `stamp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id:
+          stamp.id ||
+          `stamp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         name: stamp.name,
         organization: stamp.organization,
         category: stamp.category,
         issuedAt: stamp.issuedAt || new Date().toISOString().split("T")[0],
+        userAddress: stamp.userAddress || "", // ユーザーアドレスを確実に保存
+        contractAddress:
+          stamp.contractAddress || getCurrentContractAddresses().stampManager, // コントラクトアドレスを保存
       };
       stamps.push(newStamp);
       storage.saveStamps(stamps);
@@ -71,16 +92,18 @@ export const storage = {
     try {
       const nfts = storage.getNFTs();
       const newNFT = {
-        id: nft.id || `nft_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id:
+          nft.id ||
+          `nft_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         tokenId: nft.tokenId,
         name: nft.name,
-        description: nft.description || '',
+        description: nft.description || "",
         rarity: nft.rarity,
         organizations: nft.organizations || [],
         stampIds: nft.stampIds || [],
-        contractAddress: nft.contractAddress || '',
-        transactionHash: nft.transactionHash || '',
-        metadataURI: nft.metadataURI || '',
+        contractAddress: nft.contractAddress || "",
+        transactionHash: nft.transactionHash || "",
+        metadataURI: nft.metadataURI || "",
         mintedAt: nft.mintedAt || new Date().toISOString().split("T")[0],
       };
       nfts.push(newNFT);
@@ -127,6 +150,69 @@ export const storage = {
     } catch (err) {
       console.error("Error initializing mock data:", err);
       throw new Error("データの初期化に失敗しました");
+    }
+  },
+
+  // コントラクトアドレスのバージョンチェック
+  checkContractVersion: () => {
+    try {
+      const currentVersion = getContractVersion();
+      const storedVersion = localStorage.getItem(STORAGE_KEYS.CONTRACT_VERSION);
+
+      // バージョンが異なる場合、データをクリア
+      if (storedVersion && storedVersion !== currentVersion) {
+        console.warn(
+          "コントラクトアドレスが変更されました。データをクリアします。"
+        );
+        storage.clearAll();
+        localStorage.setItem(STORAGE_KEYS.CONTRACT_VERSION, currentVersion);
+        return true; // クリアされたことを示す
+      }
+
+      // 初回起動時はバージョンを保存
+      if (!storedVersion) {
+        localStorage.setItem(STORAGE_KEYS.CONTRACT_VERSION, currentVersion);
+      }
+
+      return false; // クリアされなかったことを示す
+    } catch (err) {
+      console.error("Error checking contract version:", err);
+      return false;
+    }
+  },
+
+  // すべてのデータをクリア
+  clearAll: () => {
+    try {
+      localStorage.removeItem(STORAGE_KEYS.STAMPS);
+      localStorage.removeItem(STORAGE_KEYS.NFTS);
+      localStorage.removeItem(STORAGE_KEYS.USER);
+      console.log("ローカルストレージをクリアしました");
+    } catch (err) {
+      console.error("Error clearing storage:", err);
+      throw new Error("データのクリアに失敗しました");
+    }
+  },
+
+  // スタンプのみクリア
+  clearStamps: () => {
+    try {
+      localStorage.removeItem(STORAGE_KEYS.STAMPS);
+      console.log("スタンプデータをクリアしました");
+    } catch (err) {
+      console.error("Error clearing stamps:", err);
+      throw new Error("スタンプデータのクリアに失敗しました");
+    }
+  },
+
+  // NFTのみクリア
+  clearNFTs: () => {
+    try {
+      localStorage.removeItem(STORAGE_KEYS.NFTS);
+      console.log("NFTデータをクリアしました");
+    } catch (err) {
+      console.error("Error clearing NFTs:", err);
+      throw new Error("NFTデータのクリアに失敗しました");
     }
   },
 };

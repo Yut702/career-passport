@@ -3,7 +3,7 @@
 # コントラクトアドレス（deployed.jsonから自動取得）
 cd "$(dirname "$0")/.."
 STAMP_MANAGER=$(jq -r '.["31337"].StampManager' deployed.json)
-NFT_CONTRACT=$(jq -r '.["31337"].CareerPassportNFT' deployed.json)
+NFT_CONTRACT=$(jq -r '.["31337"].NonFungibleCareerNFT' deployed.json)
 USER_ADDRESS="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
 PRIVATE_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 RPC_URL="http://localhost:8545"
