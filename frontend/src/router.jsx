@@ -1,4 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import TopPage from "./pages/TopPage";
+import WalletConnectPage from "./pages/WalletConnectPage";
 import UserTypeSelection from "./pages/UserTypeSelection";
 import StudentLayout from "./components/StudentLayout";
 import OrgLayout from "./components/OrgLayout";
@@ -33,8 +35,14 @@ export default function RouterComponent() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* 入り口画面 */}
-        <Route path="/" element={<UserTypeSelection />} />
+        {/* トップページ（ランディング） */}
+        <Route path="/" element={<TopPage />} />
+        
+        {/* ウォレット接続画面 */}
+        <Route path="/connect" element={<WalletConnectPage />} />
+        
+        {/* ユーザータイプ選択画面 */}
+        <Route path="/user-select" element={<UserTypeSelection />} />
 
         {/* 個人ユーザー向けルート */}
         <Route
