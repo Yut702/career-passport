@@ -1,0 +1,16 @@
+{
+  "id": "vc_student_3_degree",
+  "type": "degree",
+  "issuer": "慶應義塾大学",
+  "issuedAt": "2024-03-10T00:00:00.000Z",
+  "attributes": {
+    "university": "慶應義塾大学",
+    "major": "情報工学",
+    "degree": "学士",
+    "graduationYear": "2026",
+    "gpa": 3.7
+  },
+  "verified": true,
+  "description": "慶應義塾大学情報工学科の学位証明書VC（サンプル）"
+}
+

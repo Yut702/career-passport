@@ -26,14 +26,41 @@ async function request(endpoint, options = {}) {
 
   try {
     const response = await fetch(url, config);
-    const data = await response.json();
+
+    // レスポンスが空の場合やJSONパースエラーを防ぐ
+    let data;
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        // JSONパースに失敗した場合
+        const text = await response.text();
+        throw new Error(
+          `Invalid JSON response: ${
+            text || response.statusText || jsonError.message
+          }`
+        );
+      }
+    } else {
+      // JSON以外のレスポンスの場合
+      const text = await response.text();
+      data = { error: text || response.statusText };
+    }
 
     if (!response.ok) {
-      throw new Error(data.error || "Request failed");
+      const errorMessage =
+        data.error || `HTTP ${response.status}: ${response.statusText}`;
+      throw new Error(errorMessage);
     }
 
     return data;
   } catch (error) {
+    // ネットワークエラーの場合
+    if (error.name === "TypeError" && error.message.includes("fetch")) {
+      console.error("API request error: Network error", error);
+      throw new Error("ネットワークエラー: サーバーに接続できません");
+    }
     console.error("API request error:", error);
     throw error;
   }
@@ -43,6 +70,68 @@ async function request(endpoint, options = {}) {
  * イベント応募 API
  */
 export const eventAPI = {
+  /**
+   * イベントを作成（企業向け）
+   *
+   * @param {Object} eventData - イベントデータ
+   * @returns {Promise<Object>} 作成されたイベント
+   */
+  create: async (eventData) => {
+    return request("/events", {
+      method: "POST",
+      body: JSON.stringify(eventData),
+    });
+  },
+
+  /**
+   * イベント一覧を取得
+   *
+   * @param {string} orgWalletAddress - 企業のウォレットアドレス（オプション）
+   * @returns {Promise<Object>} イベント一覧
+   */
+  getAll: async (orgWalletAddress) => {
+    const query = orgWalletAddress
+      ? `?orgWalletAddress=${orgWalletAddress}`
+      : "";
+    return request(`/events${query}`);
+  },
+
+  /**
+   * イベント詳細を取得
+   *
+   * @param {string} eventId - イベントID
+   * @returns {Promise<Object>} イベント詳細
+   */
+  getById: async (eventId) => {
+    return request(`/events/${eventId}`);
+  },
+
+  /**
+   * イベントを更新（企業向け）
+   *
+   * @param {string} eventId - イベントID
+   * @param {Object} updates - 更新データ
+   * @returns {Promise<Object>} 更新されたイベント
+   */
+  update: async (eventId, updates) => {
+    return request(`/events/${eventId}`, {
+      method: "PATCH",
+      body: JSON.stringify(updates),
+    });
+  },
+
+  /**
+   * イベントを削除（企業向け）
+   *
+   * @param {string} eventId - イベントID
+   * @returns {Promise<Object>} 削除結果
+   */
+  delete: async (eventId) => {
+    return request(`/events/${eventId}`, {
+      method: "DELETE",
+    });
+  },
+
   /**
    * イベントに応募
    *

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useWallet } from "../hooks/useWallet";
 import { matchAPI } from "../lib/api";
+import { formatAddress } from "../lib/utils";
 
 export default function StudentMatchedCompanies() {
   const [searchParams] = useSearchParams();
@@ -50,12 +51,6 @@ export default function StudentMatchedCompanies() {
 
   const handleContact = (walletAddress) => {
     navigate(`/student/messages?companyId=${walletAddress}`);
-  };
-
-  // ウォレットアドレスを短縮表示する関数
-  const formatAddress = (address) => {
-    if (!address) return "";
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
   if (loading) {

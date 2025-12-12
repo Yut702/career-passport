@@ -1,0 +1,22 @@
+{
+  "id": "vc_org_4",
+  "type": "companyProfile",
+  "issuer": "法人登記機関",
+  "issuedAt": "2024-03-01T00:00:00.000Z",
+  "attributes": {
+    "companyName": "株式会社データサイエンス",
+    "industry": "データ分析・AI",
+    "location": "東京都",
+    "employeeCount": "50-100人",
+    "foundedYear": "2018",
+    "businessDescription": "データ分析、機械学習、AIソリューション提供",
+    "requiredSkills": ["Python", "SQL", "統計学"],
+    "preferredSkills": ["TensorFlow", "PyTorch", "Tableau", "R"],
+    "workStyle": "hybrid",
+    "salaryRange": "380万円〜550万円",
+    "benefits": ["ハイブリッドワーク", "データサイエンス勉強会参加費補助", "書籍購入補助"]
+  },
+  "verified": true,
+  "description": "株式会社データサイエンスの企業プロフィールVC（サンプル）"
+}
+

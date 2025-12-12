@@ -1,0 +1,22 @@
+{
+  "id": "vc_org_6",
+  "type": "companyProfile",
+  "issuer": "法人登記機関",
+  "issuedAt": "2024-04-01T00:00:00.000Z",
+  "attributes": {
+    "companyName": "株式会社モバイル",
+    "industry": "モバイルアプリ開発",
+    "location": "東京都",
+    "employeeCount": "30-100人",
+    "foundedYear": "2015",
+    "businessDescription": "iOS/Androidアプリ開発、モバイルゲーム開発、UI/UXデザイン",
+    "requiredSkills": ["Swift", "Kotlin", "React Native"],
+    "preferredSkills": ["Flutter", "Unity", "Firebase", "GraphQL"],
+    "workStyle": "remote",
+    "salaryRange": "360万円〜520万円",
+    "benefits": ["フルリモート", "デザインツール購入補助", "アプリストア収益還元"]
+  },
+  "verified": true,
+  "description": "株式会社モバイルの企業プロフィールVC（サンプル）"
+}
+

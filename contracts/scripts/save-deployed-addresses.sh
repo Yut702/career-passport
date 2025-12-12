@@ -43,7 +43,7 @@ else
     echo "警告: $NFT_BROADCAST_FILE が見つかりませんでした"
 fi
 
-# StampManager のアドレスを取得
+# StampManager と CareerStampSFT のアドレスを取得
 STAMP_BROADCAST_FILE="broadcast/DeployStamp.s.sol/${CHAIN_ID}/run-latest.json"
 if [ -f "$STAMP_BROADCAST_FILE" ]; then
     STAMP_ADDRESS=$(jq -r '.transactions[] | select(.contractName == "StampManager") | .contractAddress' "$STAMP_BROADCAST_FILE" | head -1)
@@ -55,6 +55,18 @@ if [ -f "$STAMP_BROADCAST_FILE" ]; then
            mv "${DEPLOYED_JSON}.tmp" "$DEPLOYED_JSON"
     else
         echo "警告: StampManager のアドレスが見つかりませんでした"
+    fi
+    
+    # CareerStampSFT のアドレスを取得
+    SFT_ADDRESS=$(jq -r '.transactions[] | select(.contractName == "CareerStampSFT") | .contractAddress' "$STAMP_BROADCAST_FILE" | head -1)
+    if [ -n "$SFT_ADDRESS" ] && [ "$SFT_ADDRESS" != "null" ]; then
+        echo "CareerStampSFT アドレスを取得: $SFT_ADDRESS"
+        # jq を使用して JSON を更新
+        jq --arg chain_id "$CHAIN_ID" --arg address "$SFT_ADDRESS" \
+           '.[$chain_id].CareerStampSFT = $address' "$DEPLOYED_JSON" > "${DEPLOYED_JSON}.tmp" && \
+           mv "${DEPLOYED_JSON}.tmp" "$DEPLOYED_JSON"
+    else
+        echo "警告: CareerStampSFT のアドレスが見つかりませんでした"
     fi
 else
     echo "警告: $STAMP_BROADCAST_FILE が見つかりませんでした"

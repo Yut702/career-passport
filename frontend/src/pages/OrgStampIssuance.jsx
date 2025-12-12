@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { ethers } from "ethers";
 import { useContracts } from "../hooks/useContracts";
 import { useWallet } from "../hooks/useWallet";
 import { storage } from "../lib/storage";
@@ -13,7 +14,7 @@ import { storage } from "../lib/storage";
 export default function OrgStampIssuance() {
   const navigate = useNavigate();
   const { stampManagerContract, isReady } = useContracts();
-  const { isConnected } = useWallet();
+  const { isConnected, account, provider } = useWallet();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
@@ -53,13 +54,104 @@ export default function OrgStampIssuance() {
     setIsLoading(true);
 
     try {
-      // トランザクションを送信
-      // issueStamp(address user, string memory name, string memory organization, string memory category)
+      // 1. コントラクトが存在するか確認（エラーが発生しても続行）
+      if (provider && stampManagerContract?.target) {
+        try {
+          // ブロック番号を指定せずにgetCodeを呼び出す（デフォルトで最新のブロックを使用）
+          // Anvilではブロック番号の問題を回避するため、エラーが発生しても続行
+          const contractCode = await provider.getCode(
+            stampManagerContract.target
+          );
+          if (contractCode === "0x" || contractCode === "0x0") {
+            setError(
+              `コントラクトが指定されたアドレスに存在しません。\nアドレス: ${stampManagerContract.target}\nコントラクトを再デプロイしてください。`
+            );
+            setIsLoading(false);
+            return;
+          }
+        } catch (codeError) {
+          // getCodeのエラーは無視して続行（ブロック番号の問題や、コントラクトが存在しない可能性があるが、owner()の呼び出しで確認できる）
+          console.warn(
+            "getCode error (ignored, will check with owner()):",
+            codeError
+          );
+        }
+      }
+
+      // 2. 発行権限を確認（所有者または参加企業NFT所有者）
+      // PoCのため、すべてのアドレスが参加企業NFTを持っているとみなす（モック実装）
+      let contractOwner;
+      let hasPermission = false;
+
+      try {
+        contractOwner = await stampManagerContract.owner();
+        if (contractOwner.toLowerCase() === account.toLowerCase()) {
+          // 所有者の場合は発行可能
+          hasPermission = true;
+        } else {
+          // 参加企業NFTを所有しているかチェック（PoC: モックで常にtrue）
+          try {
+            hasPermission = await stampManagerContract.hasPlatformNFT(account);
+          } catch (platformNFTError) {
+            console.warn("Error checking platform NFT:", platformNFTError);
+            // PoCのため、エラーが発生しても発行可能とする（モック実装）
+            hasPermission = true;
+          }
+        }
+      } catch (ownerError) {
+        console.error("Error calling owner():", ownerError);
+        // PoCのため、エラーが発生しても発行可能とする（モック実装）
+        hasPermission = true;
+      }
+
+      if (!hasPermission) {
+        setError(
+          `スタンプを発行する権限がありません。\nプラットフォーム参加企業NFTを所有している必要があります。`
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      // 3. ユーザーアドレスの形式をチェック
+      if (!ethers.isAddress(formData.userAddress)) {
+        setError(
+          "無効なユーザーアドレスです。正しいアドレス形式を入力してください。"
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      // 4. トランザクションの見積もりを事前に行う（エラーを早期検出）
+      try {
+        await stampManagerContract.issueStamp.estimateGas(
+          formData.userAddress,
+          formData.stampName,
+          formData.organization,
+          formData.category,
+          1 // 発行数量（通常は1）
+        );
+      } catch (estimateError) {
+        console.error("Gas estimation error:", estimateError);
+        let estimateErrorMessage = "トランザクションの見積もりに失敗しました";
+        if (estimateError.reason) {
+          estimateErrorMessage = `見積もりエラー: ${estimateError.reason}`;
+        } else if (estimateError.message) {
+          estimateErrorMessage = `見積もりエラー: ${estimateError.message}`;
+        }
+        setError(estimateErrorMessage);
+        setIsLoading(false);
+        return;
+      }
+
+      // 5. トランザクションを送信
+      // issueStamp(address user, string memory name, string memory organization, string memory category, uint256 amount)
+      // amount=1でSFTスタンプを1枚発行
       const tx = await stampManagerContract.issueStamp(
         formData.userAddress,
         formData.stampName,
         formData.organization,
-        formData.category
+        formData.category,
+        1 // 発行数量（通常は1）
       );
 
       // トランザクションの確認を待つ（ブロックに含まれるまで待機）

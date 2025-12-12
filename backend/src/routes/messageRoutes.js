@@ -51,7 +51,19 @@ router.get("/conversations", async (req, res) => {
     }
 
     const conversations = await getConversations(walletAddress);
-    res.json({ ok: true, conversations });
+
+    // 会話に相手の情報を追加（Fromアドレスを明確に表示するため）
+    const conversationsWithOtherInfo = conversations.map((conv) => ({
+      ...conv,
+      otherInfo: {
+        walletAddress: conv.otherAddress,
+        // 将来的にユーザープロファイル情報を追加可能
+        // displayName: userProfile?.name || formatAddress(conv.otherAddress),
+        // userType: userProfile?.type || "unknown",
+      },
+    }));
+
+    res.json({ ok: true, conversations: conversationsWithOtherInfo });
   } catch (err) {
     console.error("Error getting conversations:", err);
     res.status(500).json({ error: "Internal server error" });
@@ -66,7 +78,19 @@ router.get("/conversations/:conversationId", async (req, res) => {
   try {
     const { conversationId } = req.params;
     const messages = await getMessagesByConversation(conversationId);
-    res.json({ ok: true, messages });
+
+    // メッセージに送信者情報を追加（Fromアドレスを明確に表示するため）
+    const messagesWithSenderInfo = messages.map((msg) => ({
+      ...msg,
+      senderInfo: {
+        walletAddress: msg.senderAddress,
+        // 将来的にユーザープロファイル情報を追加可能
+        // displayName: userProfile?.name || formatAddress(msg.senderAddress),
+        // userType: userProfile?.type || "unknown",
+      },
+    }));
+
+    res.json({ ok: true, messages: messagesWithSenderInfo });
   } catch (err) {
     console.error("Error getting messages:", err);
     res.status(500).json({ error: "Internal server error" });

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import StampCard from "../components/StampCard";
 import ProgressBar from "../components/ProgressBar";
 import NFTCard from "../components/NFTCard";
@@ -12,6 +13,7 @@ import { useWallet } from "../hooks/useWallet";
  * 同一組織から3つ以上のスタンプがある場合、NFT証明書に交換できます。
  */
 export default function MyPage() {
+  const navigate = useNavigate();
   const { nftContract, stampManagerContract, isReady } = useContracts();
   const { account, isConnected } = useWallet();
   const [nfts, setNfts] = useState([]);
@@ -20,27 +22,62 @@ export default function MyPage() {
   const [loading, setLoading] = useState(true);
   const [minting, setMinting] = useState(false);
   const [mintingOrg, setMintingOrg] = useState(null);
+  const [nftEligibleOrgs, setNftEligibleOrgs] = useState([]); // NFT発行可能な組織リスト
+  const [showNotification, setShowNotification] = useState(false); // 通知表示フラグ
+  const [notificationOrg, setNotificationOrg] = useState(null); // 通知対象の組織
 
   /**
-   * ブロックチェーンからスタンプを読み込む
+   * ブロックチェーンからスタンプを読み込む（SFTベース）
    */
   const loadStamps = useCallback(async () => {
     if (!stampManagerContract || !account) return;
 
     try {
-      // ブロックチェーンからユーザーのスタンプを取得
-      const userStamps = await stampManagerContract.getUserStamps(account);
+      // コントラクトの存在確認
+      const contractCode = await stampManagerContract.runner.provider.getCode(
+        stampManagerContract.target
+      );
+      if (contractCode === "0x" || contractCode === "0x0") {
+        console.warn(
+          "StampManagerコントラクトが存在しません:",
+          stampManagerContract.target
+        );
+        return;
+      }
 
-      // スタンプデータを整形（SolidityのstructをJavaScriptオブジェクトに変換）
-      const formattedStamps = userStamps.map((stamp) => ({
-        id: stamp.id.toString(),
-        name: stamp.name,
-        organization: stamp.organization,
-        category: stamp.category,
-        issuedAt: new Date(Number(stamp.issuedAt) * 1000)
-          .toISOString()
-          .split("T")[0],
-      }));
+      // SFTベースでスタンプを取得（tokenIdsとamountsの配列を返す）
+      const [tokenIds, amounts] = await stampManagerContract.getUserStamps(
+        account
+      );
+
+      // 各tokenIdのメタデータを取得
+      const formattedStamps = [];
+      for (let i = 0; i < tokenIds.length; i++) {
+        const tokenId = tokenIds[i];
+        const amount = amounts[i];
+
+        try {
+          // StampManager経由でメタデータを取得（SFTコントラクトの直接アクセスは不要）
+          const metadata = await stampManagerContract.getStampMetadata(tokenId);
+
+          // 数量分だけスタンプを追加
+          for (let j = 0; j < Number(amount); j++) {
+            formattedStamps.push({
+              id: tokenId.toString() + "-" + j, // 一意のIDを生成
+              tokenId: tokenId.toString(),
+              name: metadata.name,
+              organization: metadata.organization,
+              category: metadata.category,
+              issuedAt: new Date(Number(metadata.createdAt) * 1000)
+                .toISOString()
+                .split("T")[0],
+              amount: Number(amount),
+            });
+          }
+        } catch (err) {
+          console.warn(`TokenId ${tokenId}のメタデータ取得に失敗:`, err);
+        }
+      }
 
       // 企業別にグループ化
       const groups = {};
@@ -53,7 +90,17 @@ export default function MyPage() {
       setOrganizationGroups(groups);
     } catch (error) {
       console.error("Error loading stamps:", error);
-      setError("スタンプの読み込みに失敗しました");
+
+      // エラーの種類に応じて適切なメッセージを表示
+      if (error.message && error.message.includes("execution reverted")) {
+        // コントラクトが存在しない、または関数が存在しない場合
+        console.warn(
+          "コントラクト呼び出しエラー: コントラクトが存在しないか、関数が実装されていません"
+        );
+        // エラーメッセージは表示しない（ユーザーには影響しない）
+      } else {
+        setError("スタンプの読み込みに失敗しました");
+      }
     }
   }, [stampManagerContract, account]);
 
@@ -64,6 +111,18 @@ export default function MyPage() {
     if (!nftContract || !account) return;
 
     try {
+      // コントラクトの存在確認
+      const contractCode = await nftContract.runner.provider.getCode(
+        nftContract.target
+      );
+      if (contractCode === "0x" || contractCode === "0x0") {
+        console.warn(
+          "NonFungibleCareerNFTコントラクトが存在しません:",
+          nftContract.target
+        );
+        return;
+      }
+
       // 総供給量を取得
       const totalSupply = await nftContract.getTotalSupply();
 
@@ -96,6 +155,15 @@ export default function MyPage() {
       setNfts(userNFTs);
     } catch (error) {
       console.error("Error loading NFTs:", error);
+
+      // エラーの種類に応じて適切に処理
+      if (error.message && error.message.includes("execution reverted")) {
+        // コントラクトが存在しない、または関数が存在しない場合
+        console.warn(
+          "コントラクト呼び出しエラー: コントラクトが存在しないか、関数が実装されていません"
+        );
+        // エラーメッセージは表示しない（ユーザーには影響しない）
+      }
     }
   }, [nftContract, account]);
 
@@ -124,13 +192,257 @@ export default function MyPage() {
   }, [isConnected, isReady, account, loadStamps, loadNFTs]);
 
   /**
-   * NFT発行可能かチェック
+   * スタンプ読み込み後にNFT発行可能性をチェック
+   */
+  useEffect(() => {
+    const checkNFTEligibility = async () => {
+      if (!stampManagerContract || !account) return;
+
+      try {
+        // 現在の組織グループから組織リストを取得
+        const orgs = Object.keys(organizationGroups);
+        if (orgs.length === 0) {
+          setNftEligibleOrgs([]);
+          return;
+        }
+
+        const eligibleOrgs = [];
+
+        for (const org of orgs) {
+          try {
+            // コントラクトの存在確認
+            const contractCode =
+              await stampManagerContract.runner.provider.getCode(
+                stampManagerContract.target
+              );
+            if (contractCode === "0x" || contractCode === "0x0") {
+              console.warn(
+                "StampManagerコントラクトが存在しません:",
+                stampManagerContract.target
+              );
+              continue;
+            }
+
+            // ブロックチェーンから直接組織別スタンプ数を取得
+            const count = await stampManagerContract.getOrganizationStampCount(
+              account,
+              org
+            );
+            const canMint = await stampManagerContract.canMintNft(account, org);
+
+            if (canMint && Number(count) >= 3) {
+              eligibleOrgs.push(org);
+            }
+          } catch (err) {
+            // execution revertedエラーは無視（コントラクトが存在しない場合など）
+            if (err.message && err.message.includes("execution reverted")) {
+              console.warn(
+                `コントラクト呼び出しエラー (${org}): コントラクトが存在しないか、関数が実装されていません`
+              );
+            } else {
+              console.error(`Error checking eligibility for ${org}:`, err);
+            }
+          }
+        }
+
+        setNftEligibleOrgs(eligibleOrgs);
+      } catch (error) {
+        console.error("Error checking NFT eligibility:", error);
+      }
+    };
+
+    if (
+      Object.keys(organizationGroups).length > 0 &&
+      stampManagerContract &&
+      account
+    ) {
+      checkNFTEligibility();
+    }
+  }, [organizationGroups, stampManagerContract, account]);
+
+  /**
+   * スタンプ発行イベントを監視し、条件を満たしたら自動的にNFTを発行
+   */
+  useEffect(() => {
+    if (!stampManagerContract || !nftContract || !account || !isReady) return;
+
+    // StampIssuedイベントを監視
+    const filter = stampManagerContract.filters.StampIssued(account);
+
+    const handleStampIssued = async (user, name, organization, timestamp) => {
+      console.log("📬 新しいスタンプが発行されました:", {
+        user,
+        name,
+        organization,
+        timestamp,
+      });
+
+      // スタンプを再読み込み
+      await loadStamps();
+
+      // 少し待ってからNFT発行可能性をチェック（ブロックチェーンの状態が更新されるまで）
+      setTimeout(async () => {
+        try {
+          // コントラクトの存在確認
+          const contractCode =
+            await stampManagerContract.runner.provider.getCode(
+              stampManagerContract.target
+            );
+          if (contractCode === "0x" || contractCode === "0x0") {
+            console.warn(
+              "StampManagerコントラクトが存在しません:",
+              stampManagerContract.target
+            );
+            return;
+          }
+
+          const count = await stampManagerContract.getOrganizationStampCount(
+            account,
+            organization
+          );
+          const canMint = await stampManagerContract.canMintNft(
+            account,
+            organization
+          );
+
+          console.log(
+            `📊 ${organization}のスタンプ数: ${count}, NFT発行可能: ${canMint}`
+          );
+
+          // 3枚以上でNFT発行可能な場合
+          if (canMint && Number(count) >= 3) {
+            // 既にその組織のNFTが発行されているかチェック
+            // NFTコントラクトから直接確認
+            let hasExistingNFT = false;
+            try {
+              const totalSupply = await nftContract.getTotalSupply();
+              for (let i = 0; i < Number(totalSupply); i++) {
+                try {
+                  const owner = await nftContract.ownerOf(i);
+                  if (owner.toLowerCase() === account.toLowerCase()) {
+                    const tokenOrgs = await nftContract.getTokenOrganizations(
+                      i
+                    );
+                    if (tokenOrgs && tokenOrgs.includes(organization)) {
+                      hasExistingNFT = true;
+                      break;
+                    }
+                  }
+                } catch {
+                  continue;
+                }
+              }
+            } catch (err) {
+              console.error("Error checking existing NFTs:", err);
+            }
+
+            // 既に発行済みでない場合のみ自動発行
+            if (!hasExistingNFT) {
+              console.log(
+                `🎉 ${organization}のスタンプが3枚に達しました。NFTを自動発行します...`
+              );
+
+              // 自動的にNFTを発行
+              try {
+                setMinting(true);
+                setMintingOrg(organization);
+                setError(null);
+
+                // NFT を発行（StampManager経由）
+                // mintNFT(address to, string memory uri, string memory name, string memory rarity, string memory organization)
+                const tx = await stampManagerContract.mintNFT(
+                  account,
+                  `https://example.com/metadata/${Date.now()}.json`,
+                  `${organization} 優秀な成績証明書`,
+                  "Common", // デフォルトはCommon（ルールID 1に基づく）
+                  organization
+                );
+
+                // トランザクションの確認を待つ
+                await tx.wait();
+
+                console.log(`✅ NFTが正常に自動発行されました！`);
+
+                // データを再読み込み
+                await Promise.all([loadStamps(), loadNFTs()]);
+
+                // 通知を表示
+                setNotificationOrg(organization);
+                setShowNotification(true);
+                setNftEligibleOrgs((prev) => {
+                  if (!prev.includes(organization)) {
+                    return [...prev, organization];
+                  }
+                  return prev;
+                });
+              } catch (mintError) {
+                console.error("Error auto-minting NFT:", mintError);
+                let errorMessage = "NFT の自動発行に失敗しました";
+                if (mintError.reason) {
+                  errorMessage = mintError.reason;
+                } else if (mintError.message) {
+                  errorMessage = mintError.message;
+                }
+                setError(errorMessage);
+              } finally {
+                setMinting(false);
+                setMintingOrg(null);
+              }
+            } else {
+              console.log(`ℹ️ ${organization}のNFTは既に発行済みです。`);
+            }
+          }
+        } catch (err) {
+          console.error("Error checking NFT eligibility after stamp:", err);
+        }
+      }, 2000); // 2秒待つ
+    };
+
+    // イベントリスナーを設定
+    stampManagerContract.on(filter, handleStampIssued);
+
+    // クリーンアップ
+    return () => {
+      stampManagerContract.off(filter, handleStampIssued);
+    };
+  }, [
+    stampManagerContract,
+    nftContract,
+    account,
+    isReady,
+    loadStamps,
+    loadNFTs,
+  ]);
+
+  /**
+   * 既に発行済みのNFTがあるかチェック
+   *
+   * @param {string} organization - 組織名
+   * @returns {boolean} 既に発行済みかどうか
+   */
+  const hasExistingNFT = useCallback(
+    (organization) => {
+      return nfts.some(
+        (nft) => nft.organizations && nft.organizations.includes(organization)
+      );
+    },
+    [nfts]
+  );
+
+  /**
+   * NFT発行可能かチェック（既に発行済みの場合はfalse）
    *
    * @param {string} org - 組織名
    * @param {number} count - スタンプ数
    * @returns {boolean} NFT発行可能かどうか
    */
-  const canMintNFT = (org, count) => count >= 3;
+  const canMintNFT = (org, count) => {
+    // 既に発行済みの場合はfalse
+    if (hasExistingNFT(org)) {
+      return false;
+    }
+    return count >= 3;
+  };
 
   /**
    * NFTを発行する関数
@@ -145,24 +457,63 @@ export default function MyPage() {
     setError(null);
 
     try {
-      // NFT を発行
-      // mint(address to, string memory tokenURI, string memory name, string memory rarity, string[] memory organizations)
-      const tx = await nftContract.mint(
+      // NFT を発行（StampManager経由）
+      // mintNFT(address to, string memory uri, string memory name, string memory rarity, string memory organization)
+      const tx = await stampManagerContract.mintNFT(
         account,
         `https://example.com/metadata/${Date.now()}.json`,
         `${organization} 優秀な成績証明書`,
         "Rare",
-        [organization]
+        organization
       );
 
       // トランザクションの確認を待つ
       await tx.wait();
 
-      // 成功メッセージ
-      alert("NFT が正常に発行されました！");
-
-      // データを再読み込み
+      // データを再読み込み（NFT証明書ページに反映される）
       await Promise.all([loadStamps(), loadNFTs()]);
+
+      // 成功メッセージとNFT証明書ページへのリンク
+      const goToNFTs = window.confirm(
+        "NFT が正常に発行されました！\nNFT証明書ページで確認しますか？"
+      );
+      if (goToNFTs) {
+        navigate("/student/nfts");
+      }
+
+      // 少し待ってからNFT発行可能性を再チェック（nftsが更新されるまで待つ）
+      setTimeout(async () => {
+        const orgs = Object.keys(organizationGroups);
+        if (orgs.length > 0 && stampManagerContract && account) {
+          const eligibleOrgs = [];
+          for (const org of orgs) {
+            try {
+              const count =
+                await stampManagerContract.getOrganizationStampCount(
+                  account,
+                  org
+                );
+              const canMint = await stampManagerContract.canMintNft(
+                account,
+                org
+              );
+              // 既に発行済みのNFTがない場合のみ追加
+              if (canMint && Number(count) >= 3) {
+                // nftsが更新された後にチェック
+                const alreadyMinted = nfts.some(
+                  (nft) => nft.organizations && nft.organizations.includes(org)
+                );
+                if (!alreadyMinted) {
+                  eligibleOrgs.push(org);
+                }
+              }
+            } catch (err) {
+              console.error(`Error checking eligibility for ${org}:`, err);
+            }
+          }
+          setNftEligibleOrgs(eligibleOrgs);
+        }
+      }, 1000);
     } catch (error) {
       console.error("Error minting NFT:", error);
 
@@ -225,6 +576,46 @@ export default function MyPage() {
 
   return (
     <div className="space-y-8">
+      {/* NFT発行可能通知 */}
+      {showNotification && notificationOrg && (
+        <div className="bg-gradient-to-r from-green-400 to-emerald-500 text-white rounded-2xl shadow-2xl p-6 border-2 border-green-300 animate-pulse">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="text-5xl">🎉</div>
+              <div>
+                <h3 className="text-2xl font-bold mb-1">
+                  NFT証明書が発行可能になりました！
+                </h3>
+                <p className="text-green-50">
+                  {notificationOrg}から3枚のスタンプを集めました。
+                  NFT証明書に交換できます。
+                </p>
+              </div>
+            </div>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => {
+                  setShowNotification(false);
+                  handleMintNFT(notificationOrg);
+                }}
+                className="bg-white text-green-600 px-6 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all"
+              >
+                🏆 今すぐ発行
+              </button>
+              <button
+                onClick={() => {
+                  setShowNotification(false);
+                  setNotificationOrg(null);
+                }}
+                className="bg-green-600 text-white px-4 py-3 rounded-xl font-bold hover:bg-green-700 transition-colors"
+              >
+                後で
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center space-x-4 mb-6">
         <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
           <span className="text-3xl">💼</span>
@@ -250,7 +641,12 @@ export default function MyPage() {
         ) : (
           Object.entries(organizationGroups).map(([org, orgStamps]) => {
             const count = orgStamps.length;
-            const canMint = canMintNFT(org, count);
+            // 既に発行済みのNFTがあるかチェック
+            const alreadyMinted = hasExistingNFT(org);
+            // ブロックチェーンから取得した情報も考慮（ただし、既に発行済みの場合はfalse）
+            const canMint =
+              !alreadyMinted &&
+              (canMintNFT(org, count) || nftEligibleOrgs.includes(org));
 
             return (
               <div
@@ -264,11 +660,15 @@ export default function MyPage() {
                     </h2>
                     <p className="text-gray-600">スタンプ {count}/3</p>
                   </div>
-                  {canMint && (
+                  {alreadyMinted ? (
+                    <span className="bg-gradient-to-r from-blue-400 to-blue-600 text-white px-4 py-2 rounded-full text-sm font-bold shadow-lg">
+                      ✅ NFT 交換済み
+                    </span>
+                  ) : canMint ? (
                     <span className="bg-gradient-to-r from-green-400 to-emerald-500 text-white px-4 py-2 rounded-full text-sm font-bold shadow-lg animate-pulse">
                       ✨ NFT 交換可能！
                     </span>
-                  )}
+                  ) : null}
                 </div>
                 <div className="mb-6">
                   <ProgressBar current={count} total={3} label="" />
@@ -287,7 +687,18 @@ export default function MyPage() {
                     </div>
                   ))}
                 </div>
-                {canMint && (
+                {alreadyMinted ? (
+                  <div className="w-full bg-gradient-to-r from-blue-50 to-blue-100 border-2 border-blue-300 text-blue-700 py-4 rounded-xl font-bold text-lg text-center">
+                    <span className="mr-2">✅</span>
+                    NFT証明書を取得済みです
+                    <button
+                      onClick={() => navigate("/student/nfts")}
+                      className="ml-4 text-blue-600 underline hover:text-blue-800"
+                    >
+                      NFT証明書ページで確認
+                    </button>
+                  </div>
+                ) : canMint ? (
                   <button
                     onClick={() => handleMintNFT(org)}
                     disabled={minting || !isReady || mintingOrg === org}
@@ -297,7 +708,7 @@ export default function MyPage() {
                       ? "⏳ 発行中..."
                       : "🏆 NFT 証明書に交換する"}
                   </button>
-                )}
+                ) : null}
               </div>
             );
           })

@@ -44,6 +44,8 @@ if [ "$STAMP_ADDRESS" == "null" ] || [ -z "$STAMP_ADDRESS" ]; then
     STAMP_ADDRESS=""
 fi
 
+# 注意: スタンプ（SFT）はStampManager経由でアクセスするため、SFTコントラクトの環境変数は不要
+
 # RPC URLとチェーンIDを設定
 RPC_URL="http://localhost:8545"
 
@@ -52,6 +54,7 @@ cat > "$ENV_FILE" << EOF
 # コントラクトアドレス（Chain ID: $CHAIN_ID）
 VITE_NFT_CONTRACT_ADDRESS=$NFT_ADDRESS
 VITE_STAMP_MANAGER_ADDRESS=$STAMP_ADDRESS
+# 注意: スタンプ（SFT）はStampManager経由でアクセスするため、SFTコントラクトの環境変数は不要
 VITE_RPC_URL=$RPC_URL
 VITE_CHAIN_ID=$CHAIN_ID
 EOF

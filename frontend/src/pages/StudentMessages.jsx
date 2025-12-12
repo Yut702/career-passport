@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useWallet } from "../hooks/useWallet";
 import { messageAPI } from "../lib/api";
+import { storage } from "../lib/storage";
+import { formatAddress } from "../lib/utils";
 
 export default function StudentMessages() {
   const [searchParams] = useSearchParams();
@@ -24,12 +26,13 @@ export default function StudentMessages() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState(null);
+  const [approvedCompanies, setApprovedCompanies] = useState([]); // 承認された企業リスト
 
-  // ウォレットアドレスを短縮表示する関数
-  const formatAddress = (address) => {
-    if (!address) return "";
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  };
+  // 承認された企業リストを読み込む
+  useEffect(() => {
+    const companies = storage.getApprovedCompanies();
+    setApprovedCompanies(companies);
+  }, []);
 
   // 会話一覧を取得
   useEffect(() => {
@@ -90,13 +93,15 @@ export default function StudentMessages() {
           selectedCompany.conversationId
         );
         if (response.ok && response.messages) {
-          // メッセージをフォーマット
+          // メッセージをフォーマット（Fromアドレス情報を含む）
           const formattedMessages = response.messages.map((msg) => ({
             id: msg.messageId,
             sender:
               msg.senderAddress.toLowerCase() === account.toLowerCase()
                 ? "user"
                 : "company",
+            senderAddress: msg.senderAddress, // Fromアドレスを保存
+            senderInfo: msg.senderInfo || { walletAddress: msg.senderAddress },
             content: msg.content,
             timestamp: new Date(msg.sentAt),
             read: msg.read,
@@ -284,6 +289,8 @@ export default function StudentMessages() {
               msg.senderAddress.toLowerCase() === account.toLowerCase()
                 ? "user"
                 : "company",
+            senderAddress: msg.senderAddress, // Fromアドレスを保存
+            senderInfo: msg.senderInfo || { walletAddress: msg.senderAddress },
             content: msg.content,
             timestamp: new Date(msg.sentAt),
             read: msg.read,
@@ -318,7 +325,41 @@ export default function StudentMessages() {
               </div>
             )}
             {isConnected && (
-              <div className="p-2 border-b border-gray-200">
+              <div className="p-2 border-b border-gray-200 space-y-2">
+                {/* 承認された企業から選択 */}
+                {approvedCompanies.length > 0 && (
+                  <div>
+                    <p className="text-xs text-gray-600 mb-2 font-medium">
+                      📋 承認された企業から選択
+                    </p>
+                    <select
+                      onChange={(e) => {
+                        const selected = approvedCompanies.find(
+                          (c) => c.walletAddress === e.target.value
+                        );
+                        if (selected) {
+                          setSelectedCompany({
+                            walletAddress: selected.walletAddress,
+                            conversationId: null,
+                          });
+                          setShowNewConversation(false);
+                        }
+                      }}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
+                      defaultValue=""
+                    >
+                      <option value="">企業を選択...</option>
+                      {approvedCompanies.map((company) => (
+                        <option
+                          key={company.walletAddress}
+                          value={company.walletAddress}
+                        >
+                          {company.companyName} ({company.eventTitle})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <button
                   onClick={() => setShowNewConversation(!showNewConversation)}
                   className="w-full px-3 py-2 text-sm bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors font-medium"
@@ -372,7 +413,16 @@ export default function StudentMessages() {
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex-1">
                         <div className="font-medium text-gray-900 mb-1">
-                          {formatAddress(conv.otherAddress)}
+                          {(() => {
+                            const company = approvedCompanies.find(
+                              (c) =>
+                                c.walletAddress.toLowerCase() ===
+                                conv.otherAddress.toLowerCase()
+                            );
+                            return company
+                              ? company.companyName
+                              : formatAddress(conv.otherAddress);
+                          })()}
                         </div>
                         <div className="flex items-center space-x-2 text-xs text-gray-500">
                           <span className="font-mono">
@@ -416,7 +466,16 @@ export default function StudentMessages() {
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex-1">
                       <h3 className="text-lg font-bold text-gray-900 mb-1">
-                        {formatAddress(selectedCompany.walletAddress)}
+                        {(() => {
+                          const company = approvedCompanies.find(
+                            (c) =>
+                              c.walletAddress.toLowerCase() ===
+                              selectedCompany.walletAddress.toLowerCase()
+                          );
+                          return company
+                            ? company.companyName
+                            : formatAddress(selectedCompany.walletAddress);
+                        })()}
                       </h3>
                       <div className="flex items-center space-x-3 text-sm text-gray-600">
                         <span className="font-mono text-xs">
@@ -628,6 +687,21 @@ export default function StudentMessages() {
                                   : "bg-white text-gray-900 border border-gray-200"
                               }`}
                             >
+                              {/* Fromアドレスを表示 */}
+                              <div
+                                className={`text-xs mb-1 font-mono ${
+                                  message.sender === "user"
+                                    ? "text-blue-100"
+                                    : "text-gray-500"
+                                }`}
+                              >
+                                From:{" "}
+                                {formatAddress(
+                                  message.senderAddress ||
+                                    message.senderInfo?.walletAddress ||
+                                    ""
+                                )}
+                              </div>
                               <p className="whitespace-pre-wrap">
                                 {message.content}
                               </p>

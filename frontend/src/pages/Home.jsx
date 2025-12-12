@@ -41,15 +41,6 @@ export default function Home() {
   const loadDataFromStorage = useCallback(() => {
     try {
       /**
-       * モックデータの初期化
-       *
-       * ローカルストレージにデータが存在しない場合、
-       * モックデータを投入して動作確認できるようにします。
-       * 本番環境では、この処理は不要になる可能性があります。
-       */
-      storage.initMockData();
-
-      /**
        * ローカルストレージからデータを取得
        *
        * 以下のデータをローカルストレージから取得します：

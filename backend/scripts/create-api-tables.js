@@ -3,6 +3,7 @@
  *
  * 用途: バックエンドAPIで使用するテーブルを作成
  * 作成テーブル:
+ *   - NonFungibleCareerEvents: イベントデータ
  *   - NonFungibleCareerEventApplications: イベント応募データ
  *   - NonFungibleCareerMessages: メッセージデータ
  *   - NonFungibleCareerMatches: マッチングデータ
@@ -23,6 +24,22 @@ if (process.env.DYNAMODB_ENDPOINT) {
 const dynamoDB = new AWS.DynamoDB(config);
 
 const tables = [
+  {
+    TableName: "NonFungibleCareerEvents",
+    KeySchema: [{ AttributeName: "eventId", KeyType: "HASH" }],
+    AttributeDefinitions: [
+      { AttributeName: "eventId", AttributeType: "S" },
+      { AttributeName: "orgWalletAddress", AttributeType: "S" },
+    ],
+    BillingMode: "PAY_PER_REQUEST",
+    GlobalSecondaryIndexes: [
+      {
+        IndexName: "OrgIndex",
+        KeySchema: [{ AttributeName: "orgWalletAddress", KeyType: "HASH" }],
+        Projection: { ProjectionType: "ALL" },
+      },
+    ],
+  },
   {
     TableName: "NonFungibleCareerEventApplications",
     KeySchema: [{ AttributeName: "applicationId", KeyType: "HASH" }],

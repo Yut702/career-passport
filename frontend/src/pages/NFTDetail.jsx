@@ -412,23 +412,16 @@ export default function NFTDetail() {
               取得条件
             </h3>
             <ul className="space-y-3">
-              {nft.stampIds.map((stampId) => {
-                const stamps = storage.getStamps();
-                const stamp = stamps.find((s) => s.id === stampId);
-                return (
-                  <li
-                    key={stampId}
-                    className="flex items-center space-x-3 bg-white rounded-lg p-3"
-                  >
-                    <span className="text-2xl">✅</span>
-                    <span className="text-gray-700 font-medium">
-                      {stamp
-                        ? `${stamp.organization} ${stamp.name}`
-                        : `スタンプ ${stampId}`}
-                    </span>
-                  </li>
-                );
-              })}
+              <li className="flex items-center space-x-3 bg-white rounded-lg p-3">
+                <span className="text-2xl">✅</span>
+                <span className="text-gray-700 font-medium">
+                  {nft.organizations && nft.organizations.length > 0
+                    ? `${nft.organizations.join(
+                        " / "
+                      )}から3枚以上のスタンプを取得`
+                    : "スタンプを3枚以上取得"}
+                </span>
+              </li>
             </ul>
           </div>
 

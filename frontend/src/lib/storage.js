@@ -6,6 +6,8 @@ const STORAGE_KEYS = {
   NFTS: "nonfungiblecareer_nfts",
   USER: "nonfungiblecareer_user",
   CONTRACT_VERSION: "nonfungiblecareer_contract_version", // コントラクトアドレスのバージョン管理
+  APPROVED_COMPANIES: "nonfungiblecareer_approved_companies", // 承認された企業情報（ユーザー側）
+  APPLICANTS: "nonfungiblecareer_applicants", // 応募者情報（企業側）
 };
 
 // 現在のコントラクトアドレス（環境変数から取得）
@@ -213,6 +215,108 @@ export const storage = {
     } catch (err) {
       console.error("Error clearing NFTs:", err);
       throw new Error("NFTデータのクリアに失敗しました");
+    }
+  },
+
+  // 承認された企業情報（ユーザー側）
+  getApprovedCompanies: () => {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.APPROVED_COMPANIES);
+      return data ? JSON.parse(data) : [];
+    } catch (err) {
+      console.error("Error getting approved companies:", err);
+      return [];
+    }
+  },
+
+  saveApprovedCompanies: (companies) => {
+    try {
+      localStorage.setItem(
+        STORAGE_KEYS.APPROVED_COMPANIES,
+        JSON.stringify(companies)
+      );
+    } catch (err) {
+      console.error("Error saving approved companies:", err);
+      throw new Error("企業情報の保存に失敗しました");
+    }
+  },
+
+  addApprovedCompany: (company) => {
+    try {
+      const companies = storage.getApprovedCompanies();
+      // 既に存在する場合は更新、存在しない場合は追加
+      const existingIndex = companies.findIndex(
+        (c) =>
+          c.walletAddress.toLowerCase() === company.walletAddress.toLowerCase()
+      );
+      const newCompany = {
+        walletAddress: company.walletAddress.toLowerCase(),
+        companyName: company.companyName || company.organization || "不明な企業",
+        organization: company.organization || company.companyName || "不明な企業",
+        eventId: company.eventId || "",
+        eventTitle: company.eventTitle || "",
+        approvedAt: company.approvedAt || new Date().toISOString(),
+      };
+      if (existingIndex >= 0) {
+        companies[existingIndex] = newCompany;
+      } else {
+        companies.push(newCompany);
+      }
+      storage.saveApprovedCompanies(companies);
+      return companies;
+    } catch (err) {
+      console.error("Error adding approved company:", err);
+      throw new Error("企業情報の追加に失敗しました");
+    }
+  },
+
+  // 応募者情報（企業側）
+  getApplicants: () => {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.APPLICANTS);
+      return data ? JSON.parse(data) : [];
+    } catch (err) {
+      console.error("Error getting applicants:", err);
+      return [];
+    }
+  },
+
+  saveApplicants: (applicants) => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.APPLICANTS, JSON.stringify(applicants));
+    } catch (err) {
+      console.error("Error saving applicants:", err);
+      throw new Error("応募者情報の保存に失敗しました");
+    }
+  },
+
+  addApplicant: (applicant) => {
+    try {
+      const applicants = storage.getApplicants();
+      // 既に存在する場合は更新、存在しない場合は追加
+      const existingIndex = applicants.findIndex(
+        (a) =>
+          a.walletAddress.toLowerCase() === applicant.walletAddress.toLowerCase() &&
+          a.eventId === applicant.eventId
+      );
+      const newApplicant = {
+        walletAddress: applicant.walletAddress.toLowerCase(),
+        eventId: applicant.eventId || "",
+        eventTitle: applicant.eventTitle || "",
+        applicationId: applicant.applicationId || "",
+        appliedAt: applicant.appliedAt || new Date().toISOString(),
+        status: applicant.status || "pending",
+      };
+      if (existingIndex >= 0) {
+        applicants[existingIndex] = newApplicant;
+      } else {
+        applicants.push(newApplicant);
+      }
+      storage.saveApplicants(applicants);
+      return applicants;
+    } catch (err) {
+      console.error("Error adding applicant:", err);
+      throw new Error("応募者情報の追加に失敗しました");
     }
   },
 };

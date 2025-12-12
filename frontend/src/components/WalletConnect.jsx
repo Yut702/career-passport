@@ -1,11 +1,12 @@
 import { useWallet } from "../hooks/useWallet";
+import { formatAddress } from "../lib/utils";
 
 /**
  * ウォレット接続コンポーネント
- * 
+ *
  * MetaMask などのウォレットと接続するためのUIコンポーネント。
  * useWallet フックを使用してウォレット接続状態を管理します。
- * 
+ *
  * 機能:
  * - ウォレット接続ボタンの表示
  * - 接続済みアカウントの表示
@@ -16,19 +17,6 @@ export default function WalletConnect() {
   // useWallet フックから状態と関数を取得
   const { account, isConnecting, error, connectWallet, disconnectWallet } =
     useWallet();
-
-  /**
-   * ウォレットアドレスを短縮形式で表示する関数
-   * 
-   * 例: "0x1234567890abcdef..." → "0x1234...cdef"
-   * 
-   * @param {string} address - ウォレットアドレス
-   * @returns {string} 短縮されたアドレス
-   */
-  const formatAddress = (address) => {
-    if (!address) return "";
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  };
 
   // ウォレットが接続されている場合の表示
   if (account) {
@@ -60,4 +48,3 @@ export default function WalletConnect() {
     </div>
   );
 }
-

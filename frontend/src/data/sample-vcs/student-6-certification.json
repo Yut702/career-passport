@@ -1,0 +1,16 @@
+{
+  "id": "vc_student_6_certification",
+  "type": "certification",
+  "issuer": "統計検定協会",
+  "issuedAt": "2024-07-15T00:00:00.000Z",
+  "attributes": {
+    "certificationName": "統計検定2級",
+    "issuingOrganization": "統計検定協会",
+    "issueDate": "2024-07-15",
+    "certificationNumber": "STAT-2-XXXXX",
+    "validUntil": null
+  },
+  "verified": true,
+  "description": "統計検定資格証明書VC（サンプル）"
+}
+

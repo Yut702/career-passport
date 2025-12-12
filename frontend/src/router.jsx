@@ -8,11 +8,13 @@ import MyNFTs from "./pages/MyNFTs";
 import NFTDetail from "./pages/NFTDetail";
 import OrgDashboard from "./pages/OrgDashboard";
 import OrgStampIssuance from "./pages/OrgStampIssuance";
+import OrgNFTIssuance from "./pages/OrgNFTIssuance";
 
 // 個人ユーザー向けページ
 import VCAndZKP from "./pages/VCAndZKP";
 import StudentEvents from "./pages/StudentEvents";
 import StudentEventApply from "./pages/StudentEventApply";
+import StudentMyApplications from "./pages/StudentMyApplications";
 import StudentJobConditions from "./pages/StudentJobConditions";
 import StudentJobSearch from "./pages/StudentJobSearch";
 import StudentMatchedCompanies from "./pages/StudentMatchedCompanies";
@@ -23,6 +25,8 @@ import OrgSettings from "./pages/OrgSettings";
 import OrgNFTs from "./pages/OrgNFTs";
 import OrgNFTDetail from "./pages/OrgNFTDetail";
 import OrgEvents from "./pages/OrgEvents";
+import OrgEventCreate from "./pages/OrgEventCreate";
+import OrgEventApplications from "./pages/OrgEventApplications";
 import OrgEventCollaborate from "./pages/OrgEventCollaborate";
 import OrgRecruitmentConditions from "./pages/OrgRecruitmentConditions";
 import OrgCandidateSearch from "./pages/OrgCandidateSearch";
@@ -106,6 +110,14 @@ export default function RouterComponent() {
           }
         />
         <Route
+          path="/student/applications"
+          element={
+            <StudentLayout>
+              <StudentMyApplications />
+            </StudentLayout>
+          }
+        />
+        <Route
           path="/student/job-conditions"
           element={
             <StudentLayout>
@@ -165,6 +177,14 @@ export default function RouterComponent() {
           }
         />
         <Route
+          path="/org/nft-issuance"
+          element={
+            <OrgLayout>
+              <OrgNFTIssuance />
+            </OrgLayout>
+          }
+        />
+        <Route
           path="/org/nfts"
           element={
             <OrgLayout>
@@ -185,6 +205,22 @@ export default function RouterComponent() {
           element={
             <OrgLayout>
               <OrgEvents />
+            </OrgLayout>
+          }
+        />
+        <Route
+          path="/org/events/create"
+          element={
+            <OrgLayout>
+              <OrgEventCreate />
+            </OrgLayout>
+          }
+        />
+        <Route
+          path="/org/events/:id/applications"
+          element={
+            <OrgLayout>
+              <OrgEventApplications />
             </OrgLayout>
           }
         />

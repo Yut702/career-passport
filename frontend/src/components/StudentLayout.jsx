@@ -53,7 +53,8 @@ export default function StudentLayout({ children }) {
               <Link
                 to="/student/nfts"
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  location.pathname === "/student/nfts" || location.pathname.startsWith("/student/nft/")
+                  location.pathname === "/student/nfts" ||
+                  location.pathname.startsWith("/student/nft/")
                     ? "bg-blue-100 text-blue-700"
                     : "text-gray-700 hover:bg-gray-100"
                 }`}
@@ -69,6 +70,16 @@ export default function StudentLayout({ children }) {
                 }`}
               >
                 イベント
+              </Link>
+              <Link
+                to="/student/applications"
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  location.pathname === "/student/applications"
+                    ? "bg-blue-100 text-blue-700"
+                    : "text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                応募一覧
               </Link>
               <Link
                 to="/student/job-conditions"
@@ -117,4 +128,3 @@ export default function StudentLayout({ children }) {
     </div>
   );
 }
-

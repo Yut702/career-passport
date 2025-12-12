@@ -37,7 +37,6 @@ export default function MyNFTs() {
     setLoading(true);
     setError(null);
     try {
-      storage.initMockData(); // Ensure mock data is initialized if not already
       const nftsData = storage.getNFTs();
       setNfts(nftsData || []);
     } catch (err) {

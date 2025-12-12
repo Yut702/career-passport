@@ -2,11 +2,13 @@
 pragma solidity ^0.8.20;
 
 import {Test} from "forge-std/Test.sol";
-import {StampManager, Stamp, MintRule} from "../src/StampManager.sol";
+import {StampManager, MintRule} from "../src/StampManager.sol";
+import {CareerStampSFT} from "../src/CareerStampSFT.sol";
 
 contract StampManagerTest is Test {
     // Testを継承してテストコントラクトを作成
     StampManager public stampManager;
+    CareerStampSFT public stampSFT;
     address public owner;
     address public user;
 
@@ -14,7 +16,15 @@ contract StampManagerTest is Test {
         // 各テストの前に実行されるセットアップ関数
         owner = address(this);  // テストコントラクト自体が所有者になる
         user = address(0x1);    // テスト用のユーザーアドレス
-        stampManager = new StampManager();  // 新しいStampManagerコントラクトをデプロイ
+        
+        // SFTコントラクトをデプロイ
+        stampSFT = new CareerStampSFT();
+        
+        // StampManagerコントラクトをデプロイ（SFTコントラクトのアドレスを渡す）
+        stampManager = new StampManager(address(stampSFT));
+        
+        // StampManagerをSFTコントラクトの所有者に設定
+        // 注意: 実際の実装では、StampManagerがSFTをmintできるようにする必要があります
     }
 
     function test_IssueStamp() public {
@@ -23,24 +33,27 @@ contract StampManagerTest is Test {
         string memory organization = unicode"東京大学";
         string memory category = unicode"学業";
 
-        // スタンプを発行
-        stampManager.issueStamp(user, name, organization, category);
+        // スタンプを発行（amount=1）
+        uint256 tokenId = stampManager.issueStamp(user, name, organization, category, 1);
 
-        // ユーザーのスタンプリストを取得
-        Stamp[] memory stamps = stampManager.getUserStamps(user);
+        // ユーザーのスタンプリストを取得（SFTベース）
+        (uint256[] memory tokenIds, uint256[] memory amounts) = stampManager.getUserStamps(user);
         
         // スタンプが1つ発行されていることを確認
-        assertEq(stamps.length, 1);
+        assertEq(tokenIds.length, 1);
+        assertEq(tokenIds[0], tokenId);
+        assertEq(amounts[0], 1);
+        
+        // スタンプのメタデータを取得
+        CareerStampSFT.StampMetadata memory metadata = stampSFT.getStampMetadata(tokenId);
         // スタンプの名前が正しく設定されているか確認
-        assertEq(stamps[0].name, name);
+        assertEq(metadata.name, name);
         // スタンプの組織が正しく設定されているか確認
-        assertEq(stamps[0].organization, organization);
+        assertEq(metadata.organization, organization);
         // スタンプのカテゴリが正しく設定されているか確認
-        assertEq(stamps[0].category, category);
-        // スタンプIDがタイムスタンプであることを確認（0より大きい）
-        assertGt(stamps[0].id, 0);
-        // 発行日時がタイムスタンプであることを確認
-        assertGt(stamps[0].issuedAt, 0);
+        assertEq(metadata.category, category);
+        // 作成日時がタイムスタンプであることを確認
+        assertGt(metadata.createdAt, 0);
     }
 
     function test_GetOrganizationStampCount() public {
@@ -52,11 +65,11 @@ contract StampManagerTest is Test {
         assertEq(stampManager.getOrganizationStampCount(user, organization), 0);
 
         // 1つ目のスタンプを発行
-        stampManager.issueStamp(user, unicode"スタンプ1", organization, category);
+        stampManager.issueStamp(user, unicode"スタンプ1", organization, category, 1);
         assertEq(stampManager.getOrganizationStampCount(user, organization), 1);
 
         // 2つ目のスタンプを発行
-        stampManager.issueStamp(user, unicode"スタンプ2", organization, category);
+        stampManager.issueStamp(user, unicode"スタンプ2", organization, category, 1);
         assertEq(stampManager.getOrganizationStampCount(user, organization), 2);
     }
 
@@ -69,11 +82,11 @@ contract StampManagerTest is Test {
         assertEq(stampManager.getCategoryStampCount(user, category), 0);
 
         // 1つ目のスタンプを発行
-        stampManager.issueStamp(user, unicode"スタンプ1", organization, category);
+        stampManager.issueStamp(user, unicode"スタンプ1", organization, category, 1);
         assertEq(stampManager.getCategoryStampCount(user, category), 1);
 
         // 2つ目のスタンプを発行
-        stampManager.issueStamp(user, unicode"スタンプ2", organization, category);
+        stampManager.issueStamp(user, unicode"スタンプ2", organization, category, 1);
         assertEq(stampManager.getCategoryStampCount(user, category), 2);
     }
 
@@ -83,16 +96,16 @@ contract StampManagerTest is Test {
         string memory category = unicode"学業";
 
         // 2つまではNFT発行不可であることを確認
-        stampManager.issueStamp(user, unicode"スタンプ1", organization, category);
-        stampManager.issueStamp(user, unicode"スタンプ2", organization, category);
+        stampManager.issueStamp(user, unicode"スタンプ1", organization, category, 1);
+        stampManager.issueStamp(user, unicode"スタンプ2", organization, category, 1);
         assertFalse(stampManager.canMintNft(user, organization));
 
         // 3つ目でNFT発行可能になることを確認
-        stampManager.issueStamp(user, unicode"スタンプ3", organization, category);
+        stampManager.issueStamp(user, unicode"スタンプ3", organization, category, 1);
         assertTrue(stampManager.canMintNft(user, organization));
 
         // 4つ目でもNFT発行可能であることを確認
-        stampManager.issueStamp(user, unicode"スタンプ4", organization, category);
+        stampManager.issueStamp(user, unicode"スタンプ4", organization, category, 1);
         assertTrue(stampManager.canMintNft(user, organization));
     }
 
@@ -101,11 +114,11 @@ contract StampManagerTest is Test {
         string memory category = unicode"学業";
 
         // 組織Aから2つ発行
-        stampManager.issueStamp(user, unicode"スタンプ1", unicode"組織A", category);
-        stampManager.issueStamp(user, unicode"スタンプ2", unicode"組織A", category);
+        stampManager.issueStamp(user, unicode"スタンプ1", unicode"組織A", category, 1);
+        stampManager.issueStamp(user, unicode"スタンプ2", unicode"組織A", category, 1);
         
         // 組織Bから1つ発行
-        stampManager.issueStamp(user, unicode"スタンプ3", unicode"組織B", category);
+        stampManager.issueStamp(user, unicode"スタンプ3", unicode"組織B", category, 1);
 
         // 組織AからはまだNFT発行不可（2つしかない）
         assertFalse(stampManager.canMintNft(user, unicode"組織A"));
@@ -113,7 +126,7 @@ contract StampManagerTest is Test {
         assertFalse(stampManager.canMintNft(user, unicode"組織B"));
 
         // 組織Aから3つ目を発行
-        stampManager.issueStamp(user, unicode"スタンプ4", unicode"組織A", category);
+        stampManager.issueStamp(user, unicode"スタンプ4", unicode"組織A", category, 1);
         
         // 組織AからはNFT発行可能になった
         assertTrue(stampManager.canMintNft(user, unicode"組織A"));
@@ -131,7 +144,7 @@ contract StampManagerTest is Test {
         vm.prank(address(0x999));
         // "Not owner"というエラーが発生することを期待
         vm.expectRevert("Not owner");
-        stampManager.issueStamp(user, name, organization, category);
+        stampManager.issueStamp(user, name, organization, category, 1);
     }
 
     function test_GetUserStampCount() public {
@@ -143,15 +156,15 @@ contract StampManagerTest is Test {
         assertEq(stampManager.getUserStampCount(user), 0);
 
         // 1つ目のスタンプを発行
-        stampManager.issueStamp(user, unicode"スタンプ1", organization, category);
+        stampManager.issueStamp(user, unicode"スタンプ1", organization, category, 1);
         assertEq(stampManager.getUserStampCount(user), 1);
 
         // 2つ目のスタンプを発行
-        stampManager.issueStamp(user, unicode"スタンプ2", organization, category);
+        stampManager.issueStamp(user, unicode"スタンプ2", organization, category, 1);
         assertEq(stampManager.getUserStampCount(user), 2);
 
         // 異なる組織からスタンプを発行しても総数は増える
-        stampManager.issueStamp(user, unicode"スタンプ3", unicode"組織B", category);
+        stampManager.issueStamp(user, unicode"スタンプ3", unicode"組織B", category, 1);
         assertEq(stampManager.getUserStampCount(user), 3);
     }
 
@@ -163,17 +176,17 @@ contract StampManagerTest is Test {
         string memory category = unicode"学業";
 
         // user1にスタンプを発行
-        stampManager.issueStamp(user1, unicode"スタンプ1", organization, category);
+        stampManager.issueStamp(user1, unicode"スタンプ1", organization, category, 1);
         assertEq(stampManager.getUserStampCount(user1), 1);
         assertEq(stampManager.getUserStampCount(user2), 0);
 
         // user2にスタンプを発行
-        stampManager.issueStamp(user2, unicode"スタンプ2", organization, category);
+        stampManager.issueStamp(user2, unicode"スタンプ2", organization, category, 1);
         assertEq(stampManager.getUserStampCount(user1), 1);
         assertEq(stampManager.getUserStampCount(user2), 1);
 
         // user1にさらにスタンプを発行
-        stampManager.issueStamp(user1, unicode"スタンプ3", organization, category);
+        stampManager.issueStamp(user1, unicode"スタンプ3", organization, category, 1);
         assertEq(stampManager.getUserStampCount(user1), 2);
         assertEq(stampManager.getUserStampCount(user2), 1);
     }
@@ -187,20 +200,19 @@ contract StampManagerTest is Test {
         uint256 beforeTimestamp = block.timestamp;
 
         // スタンプを発行
-        stampManager.issueStamp(user, unicode"スタンプ1", organization, category);
+        uint256 tokenId = stampManager.issueStamp(user, unicode"スタンプ1", organization, category, 1);
 
         // ブロックタイムスタンプを記録（発行後）
         uint256 afterTimestamp = block.timestamp;
 
-        // スタンプを取得
-        Stamp[] memory stamps = stampManager.getUserStamps(user);
+        // スタンプのメタデータを取得
+        CareerStampSFT.StampMetadata memory metadata = stampSFT.getStampMetadata(tokenId);
         
-        // スタンプIDがタイムスタンプの範囲内であることを確認
-        assertGe(stamps[0].id, beforeTimestamp);
-        assertLe(stamps[0].id, afterTimestamp);
-        // 発行日時も同様に確認
-        assertGe(stamps[0].issuedAt, beforeTimestamp);
-        assertLe(stamps[0].issuedAt, afterTimestamp);
+        // tokenIdが正しく設定されていることを確認
+        assertGt(tokenId, 0);
+        // 作成日時がタイムスタンプの範囲内であることを確認
+        assertGe(metadata.createdAt, beforeTimestamp);
+        assertLe(metadata.createdAt, afterTimestamp);
     }
 
     // ========== ルールベースシステムのテスト ==========
@@ -224,12 +236,12 @@ contract StampManagerTest is Test {
         string memory category = unicode"学業";
         
         // 2つまではNFT発行不可
-        stampManager.issueStamp(user, unicode"スタンプ1", organization, category);
-        stampManager.issueStamp(user, unicode"スタンプ2", organization, category);
+        stampManager.issueStamp(user, unicode"スタンプ1", organization, category, 1);
+        stampManager.issueStamp(user, unicode"スタンプ2", organization, category, 1);
         assertFalse(stampManager.canMintWithRule(user, 1));
         
         // 3つ目でNFT発行可能
-        stampManager.issueStamp(user, unicode"スタンプ3", organization, category);
+        stampManager.issueStamp(user, unicode"スタンプ3", organization, category, 1);
         assertTrue(stampManager.canMintWithRule(user, 1));
     }
 
@@ -240,17 +252,17 @@ contract StampManagerTest is Test {
         string memory category = unicode"学業";
         
         // 組織Aから3つ発行
-        stampManager.issueStamp(user, unicode"スタンプ1", unicode"組織A", category);
-        stampManager.issueStamp(user, unicode"スタンプ2", unicode"組織A", category);
-        stampManager.issueStamp(user, unicode"スタンプ3", unicode"組織A", category);
+        stampManager.issueStamp(user, unicode"スタンプ1", unicode"組織A", category, 1);
+        stampManager.issueStamp(user, unicode"スタンプ2", unicode"組織A", category, 1);
+        stampManager.issueStamp(user, unicode"スタンプ3", unicode"組織A", category, 1);
         
         // まだ1企業しかないのでNFT発行不可
         assertFalse(stampManager.canMintWithRule(user, rareRuleId));
         
         // 組織Bから3つ発行
-        stampManager.issueStamp(user, unicode"スタンプ4", unicode"組織B", category);
-        stampManager.issueStamp(user, unicode"スタンプ5", unicode"組織B", category);
-        stampManager.issueStamp(user, unicode"スタンプ6", unicode"組織B", category);
+        stampManager.issueStamp(user, unicode"スタンプ4", unicode"組織B", category, 1);
+        stampManager.issueStamp(user, unicode"スタンプ5", unicode"組織B", category, 1);
+        stampManager.issueStamp(user, unicode"スタンプ6", unicode"組織B", category, 1);
         
         // 2企業から各3スタンプ集まったのでNFT発行可能
         assertTrue(stampManager.canMintWithRule(user, rareRuleId));
@@ -264,15 +276,15 @@ contract StampManagerTest is Test {
         string memory category = unicode"学業";
         
         // 組織A、B、Cから各3つずつ発行
-        stampManager.issueStamp(user, unicode"スタンプA1", unicode"組織A", category);
-        stampManager.issueStamp(user, unicode"スタンプA2", unicode"組織A", category);
-        stampManager.issueStamp(user, unicode"スタンプA3", unicode"組織A", category);
-        stampManager.issueStamp(user, unicode"スタンプB1", unicode"組織B", category);
-        stampManager.issueStamp(user, unicode"スタンプB2", unicode"組織B", category);
-        stampManager.issueStamp(user, unicode"スタンプB3", unicode"組織B", category);
-        stampManager.issueStamp(user, unicode"スタンプC1", unicode"組織C", category);
-        stampManager.issueStamp(user, unicode"スタンプC2", unicode"組織C", category);
-        stampManager.issueStamp(user, unicode"スタンプC3", unicode"組織C", category);
+        stampManager.issueStamp(user, unicode"スタンプA1", unicode"組織A", category, 1);
+        stampManager.issueStamp(user, unicode"スタンプA2", unicode"組織A", category, 1);
+        stampManager.issueStamp(user, unicode"スタンプA3", unicode"組織A", category, 1);
+        stampManager.issueStamp(user, unicode"スタンプB1", unicode"組織B", category, 1);
+        stampManager.issueStamp(user, unicode"スタンプB2", unicode"組織B", category, 1);
+        stampManager.issueStamp(user, unicode"スタンプB3", unicode"組織B", category, 1);
+        stampManager.issueStamp(user, unicode"スタンプC1", unicode"組織C", category, 1);
+        stampManager.issueStamp(user, unicode"スタンプC2", unicode"組織C", category, 1);
+        stampManager.issueStamp(user, unicode"スタンプC3", unicode"組織C", category, 1);
         
         // 3企業から各3スタンプ集まったのでNFT発行可能
         assertTrue(stampManager.canMintWithRule(user, epicRuleId));
@@ -285,11 +297,11 @@ contract StampManagerTest is Test {
         string memory category = unicode"学業";
         
         // 組織Aから3つ、組織Bから2つしか発行していない
-        stampManager.issueStamp(user, unicode"スタンプ1", unicode"組織A", category);
-        stampManager.issueStamp(user, unicode"スタンプ2", unicode"組織A", category);
-        stampManager.issueStamp(user, unicode"スタンプ3", unicode"組織A", category);
-        stampManager.issueStamp(user, unicode"スタンプ4", unicode"組織B", category);
-        stampManager.issueStamp(user, unicode"スタンプ5", unicode"組織B", category);
+        stampManager.issueStamp(user, unicode"スタンプ1", unicode"組織A", category, 1);
+        stampManager.issueStamp(user, unicode"スタンプ2", unicode"組織A", category, 1);
+        stampManager.issueStamp(user, unicode"スタンプ3", unicode"組織A", category, 1);
+        stampManager.issueStamp(user, unicode"スタンプ4", unicode"組織B", category, 1);
+        stampManager.issueStamp(user, unicode"スタンプ5", unicode"組織B", category, 1);
         
         // 組織Bが3つに満たないのでNFT発行不可
         assertFalse(stampManager.canMintWithRule(user, rareRuleId));
@@ -307,18 +319,18 @@ contract StampManagerTest is Test {
         assertEq(available.length, 0);
         
         // 組織Aから3つ発行（Commonルールを満たす）
-        stampManager.issueStamp(user, unicode"スタンプ1", unicode"組織A", category);
-        stampManager.issueStamp(user, unicode"スタンプ2", unicode"組織A", category);
-        stampManager.issueStamp(user, unicode"スタンプ3", unicode"組織A", category);
+        stampManager.issueStamp(user, unicode"スタンプ1", unicode"組織A", category, 1);
+        stampManager.issueStamp(user, unicode"スタンプ2", unicode"組織A", category, 1);
+        stampManager.issueStamp(user, unicode"スタンプ3", unicode"組織A", category, 1);
         
         available = stampManager.getAvailableRules(user);
         assertEq(available.length, 1);
         assertEq(available[0], 1); // Commonルール
         
         // 組織Bから3つ発行（Rareルールも満たす）
-        stampManager.issueStamp(user, unicode"スタンプ4", unicode"組織B", category);
-        stampManager.issueStamp(user, unicode"スタンプ5", unicode"組織B", category);
-        stampManager.issueStamp(user, unicode"スタンプ6", unicode"組織B", category);
+        stampManager.issueStamp(user, unicode"スタンプ4", unicode"組織B", category, 1);
+        stampManager.issueStamp(user, unicode"スタンプ5", unicode"組織B", category, 1);
+        stampManager.issueStamp(user, unicode"スタンプ6", unicode"組織B", category, 1);
         
         available = stampManager.getAvailableRules(user);
         assertEq(available.length, 2);
@@ -340,12 +352,12 @@ contract StampManagerTest is Test {
         
         // まずスタンプを発行して条件を満たす
         string memory category = unicode"学業";
-        stampManager.issueStamp(user, unicode"スタンプ1", unicode"組織A", category);
-        stampManager.issueStamp(user, unicode"スタンプ2", unicode"組織A", category);
-        stampManager.issueStamp(user, unicode"スタンプ3", unicode"組織A", category);
-        stampManager.issueStamp(user, unicode"スタンプ4", unicode"組織B", category);
-        stampManager.issueStamp(user, unicode"スタンプ5", unicode"組織B", category);
-        stampManager.issueStamp(user, unicode"スタンプ6", unicode"組織B", category);
+        stampManager.issueStamp(user, unicode"スタンプ1", unicode"組織A", category, 1);
+        stampManager.issueStamp(user, unicode"スタンプ2", unicode"組織A", category, 1);
+        stampManager.issueStamp(user, unicode"スタンプ3", unicode"組織A", category, 1);
+        stampManager.issueStamp(user, unicode"スタンプ4", unicode"組織B", category, 1);
+        stampManager.issueStamp(user, unicode"スタンプ5", unicode"組織B", category, 1);
+        stampManager.issueStamp(user, unicode"スタンプ6", unicode"組織B", category, 1);
         
         // ルールが有効な状態では満たせる
         assertTrue(stampManager.canMintWithRule(user, ruleId));

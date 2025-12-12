@@ -47,13 +47,6 @@ export default function OrgDashboard() {
       /**
        * モックデータの初期化
        *
-       * ローカルストレージにデータが存在しない場合、
-       * モックデータを投入して動作確認できるようにします。
-       * 本番環境では、この処理は不要になる可能性があります。
-       */
-      storage.initMockData();
-
-      /**
        * ローカルストレージからデータを取得
        *
        * 以下のデータをローカルストレージから取得します：
@@ -281,12 +274,20 @@ export default function OrgDashboard() {
           </h1>
           <p className="text-gray-600">スタンプ発行と統計管理</p>
         </div>
-        <Link
-          to="/org/stamp-issuance"
-          className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
-        >
-          🎫 スタンプを発行
-        </Link>
+        <div className="flex space-x-4">
+          <Link
+            to="/org/stamp-issuance"
+            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
+          >
+            🎫 スタンプを発行
+          </Link>
+          <Link
+            to="/org/nft-issuance"
+            className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-6 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
+          >
+            🏆 NFT証明書を発行
+          </Link>
+        </div>
       </div>
 
       {/* エラー警告（データが存在する場合） */}

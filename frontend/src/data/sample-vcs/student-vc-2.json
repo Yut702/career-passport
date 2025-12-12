@@ -1,0 +1,24 @@
+{
+  "id": "vc_student_2",
+  "type": "studentProfile",
+  "issuer": "教育機関",
+  "issuedAt": "2024-02-20T00:00:00.000Z",
+  "attributes": {
+    "university": "早稲田大学",
+    "major": "情報科学",
+    "degree": "学士",
+    "graduationYear": "2025",
+    "gpa": 3.6,
+    "skills": ["Python", "AWS", "Docker", "Kubernetes"],
+    "languages": {
+      "japanese": "native",
+      "english": "intermediate"
+    },
+    "certifications": ["AWS認定ソリューションアーキテクト", "Docker認定"],
+    "internshipExperience": true,
+    "researchExperience": false
+  },
+  "verified": true,
+  "description": "早稲田大学情報科学科の学生プロフィールVC（サンプル）"
+}
+

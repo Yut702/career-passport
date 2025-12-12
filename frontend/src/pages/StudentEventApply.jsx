@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useWallet } from "../hooks/useWallet";
 import { eventAPI } from "../lib/api";
+import { formatOrganization } from "../lib/utils";
 
 export default function StudentEventApply() {
   const { id } = useParams();
@@ -18,24 +19,38 @@ export default function StudentEventApply() {
   const [success, setSuccess] = useState(false);
   const [applicationId, setApplicationId] = useState(null);
   const [myApplications, setMyApplications] = useState([]);
+  const hasApplied = myApplications.length > 0; // 応募済みかどうか
 
   useEffect(() => {
-    // モックデータ（実際の実装ではAPIから取得）
-    const mockEvent = {
-      id: parseInt(id),
-      title: "サマーインターンシップ 2025",
-      organization: "株式会社テック",
-      description: "エンジニア向けのサマーインターンシップです。",
-      startDate: "2025-07-01",
-      endDate: "2025-08-31",
-      requirements: [
-        "プログラミング経験があること",
-        "チームワークを大切にできること",
-        "積極的な姿勢",
-      ],
+    // APIからイベント詳細を取得
+    const loadEvent = async () => {
+      setLoading(true);
+      try {
+        const response = await eventAPI.getById(id);
+        if (response.ok && response.event) {
+          setEvent({
+            eventId: response.event.eventId,
+            title: response.event.title,
+            organization: response.event.orgWalletAddress || "企業",
+            description: response.event.description || "",
+            startDate: response.event.startDate,
+            endDate: response.event.endDate,
+            location: response.event.location || "",
+            maxParticipants: response.event.maxParticipants,
+            status: response.event.status,
+          });
+        } else {
+          setEvent(null);
+        }
+      } catch (err) {
+        console.error("Error loading event:", err);
+        setEvent(null);
+      } finally {
+        setLoading(false);
+      }
     };
-    setEvent(mockEvent);
-    setLoading(false);
+
+    loadEvent();
   }, [id]);
 
   // 自分の応募履歴を取得
@@ -45,14 +60,19 @@ export default function StudentEventApply() {
     const loadMyApplications = async () => {
       try {
         const response = await eventAPI.getMyApplications(account);
-        if (response.ok && response.applications) {
+        if (response && response.ok && response.applications) {
           const eventApplications = response.applications.filter(
-            (app) => app.eventId === `event-${id}`
+            (app) => app.eventId === id
           );
           setMyApplications(eventApplications);
+        } else {
+          // エラーが発生した場合は空配列を設定（エラーを無視して続行）
+          setMyApplications([]);
         }
       } catch (err) {
         console.error("Error loading applications:", err);
+        // エラーが発生した場合は空配列を設定（エラーを無視して続行）
+        setMyApplications([]);
       }
     };
 
@@ -84,11 +104,7 @@ export default function StudentEventApply() {
       const applicationText = `${formData.motivation}\n\n【経験・スキル】\n${formData.experience}`;
       console.log("📤 応募送信:", { eventId: id, walletAddress: account });
 
-      const response = await eventAPI.apply(
-        `event-${id}`,
-        account,
-        applicationText
-      );
+      const response = await eventAPI.apply(id, account, applicationText);
 
       console.log("✅ 応募成功:", response);
 
@@ -100,7 +116,7 @@ export default function StudentEventApply() {
         const appsResponse = await eventAPI.getMyApplications(account);
         if (appsResponse.ok && appsResponse.applications) {
           const eventApplications = appsResponse.applications.filter(
-            (app) => app.eventId === `event-${id}`
+            (app) => app.eventId === id
           );
           setMyApplications(eventApplications);
         }
@@ -146,8 +162,10 @@ export default function StudentEventApply() {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             {event.title}
           </h1>
-          <p className="text-gray-600 mb-4">{event.organization}</p>
-          <p className="text-gray-700">{event.description}</p>
+          <p className="text-gray-600 mb-4">
+            {formatOrganization(event.organization)}
+          </p>
+          <p className="text-gray-700">{event.description || "説明なし"}</p>
         </div>
 
         <div className="mb-8 p-6 bg-blue-50 rounded-xl border border-blue-200">
@@ -157,14 +175,18 @@ export default function StudentEventApply() {
           </p>
         </div>
 
-        <div className="mb-8">
-          <h3 className="font-bold text-gray-900 mb-3">応募条件</h3>
-          <ul className="list-disc list-inside space-y-2 text-gray-700">
-            {event.requirements.map((req, index) => (
-              <li key={index}>{req}</li>
-            ))}
-          </ul>
-        </div>
+        {event.location && (
+          <div className="mb-8 p-6 bg-gray-50 rounded-xl border border-gray-200">
+            <h3 className="font-bold text-gray-900 mb-3">開催場所</h3>
+            <p className="text-gray-700">{event.location}</p>
+          </div>
+        )}
+        {event.maxParticipants && (
+          <div className="mb-8 p-6 bg-gray-50 rounded-xl border border-gray-200">
+            <h3 className="font-bold text-gray-900 mb-3">最大参加者数</h3>
+            <p className="text-gray-700">{event.maxParticipants}人</p>
+          </div>
+        )}
 
         {!isConnected && (
           <div className="mb-6 p-4 bg-yellow-50 border-2 border-yellow-200 rounded-xl">
@@ -257,56 +279,75 @@ export default function StudentEventApply() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              応募動機 <span className="text-red-500">*</span>
-            </label>
-            <textarea
-              name="motivation"
-              value={formData.motivation}
-              onChange={handleChange}
-              rows={5}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-              placeholder="このイベントに応募する理由を記入してください"
-              required
-              disabled={submitting || !isConnected}
-            />
-          </div>
+        {!hasApplied ? (
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                応募動機 <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                name="motivation"
+                value={formData.motivation}
+                onChange={handleChange}
+                rows={5}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                placeholder="このイベントに応募する理由を記入してください"
+                required
+                disabled={submitting || !isConnected}
+              />
+            </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              経験・スキル
-            </label>
-            <textarea
-              name="experience"
-              value={formData.experience}
-              onChange={handleChange}
-              rows={5}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-              placeholder="関連する経験やスキルを記入してください"
-              disabled={submitting || !isConnected}
-            />
-          </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                経験・スキル
+              </label>
+              <textarea
+                name="experience"
+                value={formData.experience}
+                onChange={handleChange}
+                rows={5}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                placeholder="関連する経験やスキルを記入してください"
+                disabled={submitting || !isConnected}
+              />
+            </div>
 
-          <div className="flex justify-end space-x-4 pt-4">
-            <button
-              type="button"
-              onClick={() => navigate("/student/events")}
-              className="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors"
-              disabled={submitting}
-            >
-              キャンセル
-            </button>
-            <button
-              type="submit"
-              disabled={submitting || !isConnected}
-              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {submitting ? "送信中..." : "応募する"}
-            </button>
+            <div className="flex justify-end space-x-4 pt-4">
+              <button
+                type="button"
+                onClick={() => navigate("/student/events")}
+                className="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors"
+                disabled={submitting}
+              >
+                キャンセル
+              </button>
+              <button
+                type="submit"
+                disabled={submitting || !isConnected || hasApplied}
+                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+              >
+                {submitting ? "送信中..." : "応募する"}
+              </button>
+            </div>
+          </form>
+        ) : (
+          <div className="p-6 bg-blue-50 rounded-xl border-2 border-blue-200">
+            <p className="text-blue-800 font-semibold text-center mb-2">
+              ✅ このイベントには既に応募済みです
+            </p>
+            <p className="text-blue-700 text-sm text-center">
+              応募状況は上記の応募履歴で確認できます
+            </p>
+            <div className="flex justify-center mt-4">
+              <button
+                onClick={() => navigate("/student/events")}
+                className="px-6 py-3 border border-blue-300 text-blue-700 rounded-xl font-medium hover:bg-blue-100 transition-colors"
+              >
+                イベント一覧に戻る
+              </button>
+            </div>
           </div>
-        </form>
+        )}
       </div>
     </div>
   );

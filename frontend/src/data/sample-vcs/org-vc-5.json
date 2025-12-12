@@ -1,0 +1,22 @@
+{
+  "id": "vc_org_5",
+  "type": "companyProfile",
+  "issuer": "法人登記機関",
+  "issuedAt": "2024-03-15T00:00:00.000Z",
+  "attributes": {
+    "companyName": "株式会社セキュリティ",
+    "industry": "セキュリティ・インフラ",
+    "location": "東京都",
+    "employeeCount": "200-500人",
+    "foundedYear": "2012",
+    "businessDescription": "サイバーセキュリティサービス、インフラ構築、セキュリティ監査",
+    "requiredSkills": ["Linux", "ネットワーク", "セキュリティ"],
+    "preferredSkills": ["AWS", "Kubernetes", "Terraform", "SIEM"],
+    "workStyle": "office",
+    "salaryRange": "420万円〜650万円",
+    "benefits": ["資格取得支援", "セキュリティカンファレンス参加費補助", "技術書籍購入補助"]
+  },
+  "verified": true,
+  "description": "株式会社セキュリティの企業プロフィールVC（サンプル）"
+}
+
