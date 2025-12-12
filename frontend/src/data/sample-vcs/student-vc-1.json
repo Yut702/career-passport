@@ -1,0 +1,24 @@
+{
+  "id": "vc_student_1",
+  "type": "studentProfile",
+  "issuer": "教育機関",
+  "issuedAt": "2024-01-15T00:00:00.000Z",
+  "attributes": {
+    "university": "東京大学",
+    "major": "情報工学",
+    "degree": "学士",
+    "graduationYear": "2026",
+    "gpa": 3.8,
+    "skills": ["JavaScript", "React", "Node.js", "TypeScript"],
+    "languages": {
+      "japanese": "native",
+      "english": "advanced"
+    },
+    "certifications": ["TOEIC 850点", "基本情報技術者"],
+    "internshipExperience": true,
+    "researchExperience": true
+  },
+  "verified": true,
+  "description": "東京大学情報工学科の学生プロフィールVC（サンプル）"
+}
+

@@ -6,26 +6,34 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "dynamodb:install": "dynamodb-local install",
-    "dynamodb:start": "dynamodb-local --port 8000",
+    "dynamodb:up": "docker compose up -d",
+    "dynamodb:down": "docker compose down",
+    "dynamodb:logs": "docker compose logs -f dynamodb",
+    "dynamodb:stop": "docker compose stop",
     "create-table": "node scripts/create-table.js",
     "create-tables": "node scripts/create-tables.js",
-    "seed": "node scripts/seed-user.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "create-api-tables": "node scripts/create-api-tables.js",
+    "view-data": "node scripts/view-data.js",
+    "view-applications": "node scripts/view-applications.js",
+    "check-tables": "node scripts/check-tables.js",
+    "check-indexes": "node scripts/check-indexes.js",
+    "clean-database": "node scripts/clean-database.js",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest",
+    "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
+    "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --coverage"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "aws-sdk": "^2.1692.0",
-    "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
-    "express": "^5.1.0",
-    "jsonwebtoken": "^9.0.2"
+    "express": "^5.1.0"
   },
   "devDependencies": {
-    "dynamodb-local": "^0.0.36",
-    "nodemon": "^3.1.11"
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.11",
+    "supertest": "^7.0.0"
   }
 }

@@ -1,0 +1,16 @@
+{
+  "id": "vc_student_4_aws",
+  "type": "certification",
+  "issuer": "AWS",
+  "issuedAt": "2024-07-01T00:00:00.000Z",
+  "attributes": {
+    "certificationName": "AWS認定クラウドプラクティショナー",
+    "issuingOrganization": "Amazon Web Services",
+    "issueDate": "2024-07-01",
+    "certificationNumber": "AWS-CP-XXXXX",
+    "validUntil": "2027-07-01"
+  },
+  "verified": true,
+  "description": "AWS認定資格証明書VC（サンプル）"
+}
+

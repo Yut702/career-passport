@@ -1,10 +1,24 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import ProgressBar from "../components/ProgressBar";
 import StampCard from "../components/StampCard";
+import { useContracts } from "../hooks/useContracts";
+import { useWallet } from "../hooks/useWallet";
 import { storage } from "../lib/storage";
 
+/**
+ * ユーザーダッシュボード（ホーム画面）
+ *
+ * ブロックチェーンからスタンプとNFTを読み込み、ユーザーの統計情報を表示します。
+ * ウォレットが接続されていない場合は、ローカルストレージから読み込みます（フォールバック）。
+ */
 export default function Home() {
+  // コントラクトインスタンスを取得
+  const { nftContract, stampManagerContract, isReady } = useContracts();
+  // ウォレット接続状態を取得
+  const { account, isConnected } = useWallet();
+
+  // 状態管理
   const [user, setUser] = useState(null);
   const [stamps, setStamps] = useState([]);
   const [nfts, setNfts] = useState([]);
@@ -12,57 +26,339 @@ export default function Home() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        // モックデータを初期化
-        storage.initMockData();
+  /**
+   * ローカルストレージからデータを読み込む関数（フォールバック）
+   *
+   * ウォレットが接続されていない場合や、ブロックチェーンからの読み込みに失敗した場合に使用します。
+   * ローカルストレージに保存されたデータを読み込み、表示します。
+   *
+   * useCallback でメモ化することで、関数の再作成を防ぎます。
+   * この関数は依存関係がないため、常に同じ関数インスタンスを返します。
+   *
+   * @async
+   * @returns {Promise<void>}
+   */
+  const loadDataFromStorage = useCallback(() => {
+    try {
+      /**
+       * ローカルストレージからデータを取得
+       *
+       * 以下のデータをローカルストレージから取得します：
+       * - ユーザー情報
+       * - スタンプデータ
+       * - NFT データ
+       */
+      const userData = storage.getUser();
+      const stampsData = storage.getStamps();
+      const nftsData = storage.getNFTs();
 
-        // データを取得
-        const userData = storage.getUser();
-        const stampsData = storage.getStamps();
-        const nftsData = storage.getNFTs();
+      setUser(userData);
+      setStamps(stampsData || []);
+      setNfts(nftsData || []);
 
-        console.log("Loaded data:", { userData, stampsData, nftsData });
-
-        setUser(userData);
-        setStamps(stampsData || []);
-        setNfts(nftsData || []);
-
-        // 企業別のスタンプ数を集計
-        const stats = {};
-        if (stampsData && stampsData.length > 0) {
-          stampsData.forEach((stamp) => {
-            if (!stats[stamp.organization]) {
-              stats[stamp.organization] = 0;
-            }
-            stats[stamp.organization]++;
-          });
-        }
-        setOrganizationStats(stats);
-        setLoading(false);
-      } catch (err) {
-        console.error("Error loading data:", err);
-        setError("データの読み込みに失敗しました");
-        setLoading(false);
+      /**
+       * 企業別のスタンプ数を集計
+       *
+       * ダッシュボードに表示する統計情報を計算します。
+       * ブロックチェーンから読み込む場合と同じロジックを使用します。
+       */
+      const stats = {};
+      if (stampsData && stampsData.length > 0) {
+        stampsData.forEach((stamp) => {
+          if (!stats[stamp.organization]) {
+            stats[stamp.organization] = 0;
+          }
+          stats[stamp.organization]++;
+        });
       }
-    };
-
-    loadData();
+      setOrganizationStats(stats);
+    } catch (err) {
+      /**
+       * エラーハンドリング: ローカルストレージからの読み込みに失敗した場合
+       *
+       * ローカルストレージが無効な場合や、データが破損している場合にエラーが発生します。
+       */
+      console.error("Error loading data from storage:", err);
+      setError("データの読み込みに失敗しました");
+    } finally {
+      /**
+       * ローディング状態を解除
+       */
+      setLoading(false);
+    }
   }, []);
 
-  // 次の目標を計算（3つ未満の企業）
+  /**
+   * ブロックチェーンからデータを読み込む関数
+   *
+   * 以下のデータをブロックチェーンから取得します：
+   * 1. スタンプ情報（StampManager コントラクトから）
+   * 2. NFT 情報（NonFungibleCareerNFT コントラクトから）
+   * 3. 企業別のスタンプ数統計
+   *
+   * 取得したデータはローカルストレージに保存（キャッシュ）し、
+   * 次回アクセス時のパフォーマンスを向上させます。
+   *
+   * useCallback でメモ化することで、依存関係が変更されない限り
+   * 関数の再作成を防ぎ、パフォーマンスを向上させます。
+   *
+   * @async
+   * @returns {Promise<void>}
+   * @throws {Error} コントラクトが読み込まれていない場合
+   * @throws {Error} ブロックチェーンからの読み込みに失敗した場合
+   */
+  const loadData = useCallback(async () => {
+    // コントラクトとアカウントが存在しない場合は処理を中断
+    if (!stampManagerContract || !nftContract || !account) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      /**
+       * ステップ1: ユーザー情報を取得（ローカルストレージから）
+       *
+       * ユーザー情報はブロックチェーン上には保存されていないため、
+       * ローカルストレージから取得します。
+       * 将来的には、ウォレットアドレスからユーザー情報を取得する設計も可能です。
+       */
+      const userData = storage.getUser();
+      setUser(userData);
+
+      /**
+       * ステップ2: ブロックチェーンからスタンプを読み込む
+       *
+       * StampManager コントラクトの getUserStamps() 関数を使用して、
+       * 現在のユーザー（account）が所有するスタンプのリストを取得します。
+       *
+       * 戻り値は Solidity の struct 配列で、以下の情報が含まれます：
+       * - id: スタンプID（タイムスタンプ）
+       * - name: スタンプ名
+       * - organization: 発行組織
+       * - category: カテゴリ
+       * - issuedAt: 発行日時（Unix タイムスタンプ）
+       */
+      const userStamps = await stampManagerContract.getUserStamps(account);
+
+      /**
+       * ステップ2-1: スタンプデータを整形
+       *
+       * ブロックチェーンから取得したスタンプデータを、
+       * フロントエンドで使用しやすい形式に変換します。
+       * - issuedAt を Unix タイムスタンプから日付文字列に変換
+       * - id を文字列形式に変換（一意のIDとして使用）
+       */
+      const formattedStamps = userStamps.map((stamp, index) => ({
+        id: `stamp_${index}`, // 一意のID（URL パラメータとして使用）
+        name: stamp.name, // スタンプ名
+        organization: stamp.organization, // 発行組織
+        category: stamp.category, // カテゴリ
+        userAddress: account, // ユーザーアドレス（参加者数の計算に使用）
+        issuedAt: new Date(Number(stamp.issuedAt) * 1000)
+          .toISOString()
+          .split("T")[0], // Unix タイムスタンプを日付文字列に変換（秒→ミリ秒→ISO形式→日付部分のみ）
+      }));
+
+      setStamps(formattedStamps);
+
+      /**
+       * ステップ2-2: ローカルストレージに保存（キャッシュ）
+       *
+       * ブロックチェーンから取得したスタンプデータをローカルストレージに保存します。
+       * これにより、次回アクセス時にブロックチェーンへのリクエストを減らし、
+       * パフォーマンスを向上させることができます。
+       */
+      if (formattedStamps.length > 0) {
+        storage.saveStamps(formattedStamps);
+      }
+
+      /**
+       * ステップ3: ブロックチェーンから NFT を読み込む
+       *
+       * NonFungibleCareerNFT コントラクトから以下の情報を取得します：
+       * 1. 総供給量（getTotalSupply）を取得
+       * 2. 各トークン ID について、所有者を確認
+       * 3. 現在のユーザーが所有する NFT の詳細情報を取得
+       */
+      const totalSupply = await nftContract.getTotalSupply();
+      const totalSupplyNumber = Number(totalSupply);
+      const userNFTs = [];
+
+      /**
+       * ステップ3-1: ユーザーが所有する NFT を取得
+       *
+       * 総供給量分のトークン ID（0 から totalSupplyNumber - 1）について、
+       * 各トークンの所有者を確認します。
+       * 現在のユーザー（account）が所有者の場合、その NFT の詳細情報を取得します。
+       */
+      for (let i = 0; i < totalSupplyNumber; i++) {
+        try {
+          /**
+           * トークンの所有者を取得
+           *
+           * ownerOf(tokenId) は ERC721 標準の関数で、
+           * 指定されたトークン ID の所有者アドレスを返します。
+           * トークンが存在しない場合はエラーが発生するため、try-catch で処理します。
+           */
+          const owner = await nftContract.ownerOf(i);
+
+          /**
+           * 所有者が現在のユーザーか確認
+           *
+           * ブロックチェーン上のアドレスは大文字・小文字を区別しないため、
+           * toLowerCase() で比較します。
+           */
+          if (owner.toLowerCase() === account.toLowerCase()) {
+            /**
+             * NFT の詳細情報を取得
+             *
+             * ユーザーが所有する NFT の場合、以下の情報を取得します：
+             * - getTokenName: NFT の名前（例: "優秀な成績証明書"）
+             * - getTokenRarity: レアリティ（例: "Common", "Rare", "Epic", "Legendary"）
+             * - getTokenOrganizations: 関連組織の配列（例: ["東京大学"]）
+             */
+            const tokenName = await nftContract.getTokenName(i);
+            const rarity = await nftContract.getTokenRarity(i);
+            const organizations = await nftContract.getTokenOrganizations(i);
+
+            /**
+             * NFT データを整形
+             *
+             * 取得した情報を、フロントエンドで使用しやすい形式に整形します。
+             * ダッシュボードでは簡易的な情報のみを表示するため、
+             * 詳細情報（tokenURI など）は取得していません。
+             */
+            userNFTs.push({
+              id: `nft_${i}`, // 一意の ID（URL パラメータとして使用）
+              tokenId: i, // トークン ID（ブロックチェーン上の ID）
+              name: tokenName, // NFT の名前
+              rarity: rarity.toLowerCase(), // レアリティ（小文字に変換）
+              organizations: organizations, // 関連組織の配列
+            });
+          }
+        } catch (err) {
+          /**
+           * エラーハンドリング: トークンが存在しない場合
+           *
+           * トークン ID が存在しない場合（例: バーンされたトークン）、
+           * ownerOf() がエラーを投げます。
+           * この場合は、そのトークンをスキップして次のトークンを処理します。
+           */
+          console.warn(`Token ${i} does not exist:`, err);
+        }
+      }
+
+      setNfts(userNFTs);
+
+      /**
+       * ステップ3-2: ローカルストレージに保存（キャッシュ）
+       *
+       * ブロックチェーンから取得した NFT データをローカルストレージに保存します。
+       * これにより、次回アクセス時にブロックチェーンへのリクエストを減らし、
+       * パフォーマンスを向上させることができます。
+       */
+      if (userNFTs.length > 0) {
+        storage.saveNFTs(userNFTs);
+      }
+
+      /**
+       * ステップ4: 企業別のスタンプ数を集計
+       *
+       * ダッシュボードに表示する統計情報を計算します。
+       * 各スタンプの organization をキーとして、スタンプ数をカウントします。
+       * これにより、「次の目標」セクションで、どの企業からスタンプを集めるべきかが分かります。
+       */
+      const stats = {};
+      formattedStamps.forEach((stamp) => {
+        // 企業名がまだ stats オブジェクトに存在しない場合は初期化
+        if (!stats[stamp.organization]) {
+          stats[stamp.organization] = 0;
+        }
+        // スタンプ数をインクリメント
+        stats[stamp.organization]++;
+      });
+      setOrganizationStats(stats);
+    } catch (err) {
+      /**
+       * エラーハンドリング: ブロックチェーンからの読み込みに失敗した場合
+       *
+       * ネットワークエラーやコントラクトエラーが発生した場合、
+       * エラーメッセージを設定し、ローカルストレージから読み込みを試みます。
+       */
+      console.error("Error loading data:", err);
+      setError("データの読み込みに失敗しました");
+      // エラー時はローカルストレージから読み込む（フォールバック）
+      loadDataFromStorage();
+    } finally {
+      /**
+       * ローディング状態を解除
+       *
+       * 成功・失敗に関わらず、ローディング状態を false に設定します。
+       * これにより、ローディング表示が解除され、結果が表示されます。
+       */
+      setLoading(false);
+    }
+  }, [stampManagerContract, nftContract, account, loadDataFromStorage]);
+
+  /**
+   * ウォレット接続状態とコントラクト準備状態が変更されたときにデータを読み込む
+   *
+   * ウォレットが接続されていて、コントラクトが準備完了している場合、
+   * ブロックチェーンからデータを読み込みます。
+   * ウォレットが接続されていない場合は、ローカルストレージから読み込みます。
+   */
+  useEffect(() => {
+    if (isConnected && isReady && account) {
+      // ブロックチェーンから読み込む
+      loadData();
+    } else if (!isConnected) {
+      // ウォレット未接続時はローカルストレージから読み込む（フォールバック）
+      loadDataFromStorage();
+    }
+  }, [isConnected, isReady, account, loadData, loadDataFromStorage]);
+
+  /**
+   * 次の目標を計算する関数
+   *
+   * 企業別のスタンプ数を確認し、3つ未満の企業を探します。
+   * 見つかった最初の企業を「次の目標」として返します。
+   *
+   * NFT 証明書を取得するには、同一企業から3つ以上のスタンプが必要です。
+   * この関数は、ユーザーが次にどの企業からスタンプを集めるべきかを示します。
+   *
+   * @returns {Object|null} 次の目標情報
+   * @returns {string} organization - 企業名
+   * @returns {number} current - 現在のスタンプ数
+   * @returns {number} needed - 必要なスタンプ数（3 - current）
+   * @returns {null} すべての企業で3つ以上のスタンプがある場合
+   */
   const getNextGoal = () => {
+    // 企業別のスタンプ数をループ処理
     for (const [org, count] of Object.entries(organizationStats)) {
+      // 3つ未満の企業が見つかった場合
       if (count < 3) {
-        return { organization: org, current: count, needed: 3 - count };
+        return {
+          organization: org, // 企業名
+          current: count, // 現在のスタンプ数
+          needed: 3 - count, // 必要なスタンプ数（3つに達するまで）
+        };
       }
     }
+    // すべての企業で3つ以上のスタンプがある場合
     return null;
   };
 
+  // 次の目標を計算
   const nextGoal = getNextGoal();
-  const recentStamps = stamps.slice(-3).reverse();
+
+  /**
+   * 最近のスタンプを取得
+   *
+   * スタンプ配列の最後の3つを取得し、新しい順（逆順）に並べ替えます。
+   * これにより、ダッシュボードに「最近のスタンプ」セクションを表示できます。
+   */
+  const recentStamps =
+    stamps && stamps.length > 0 ? stamps.slice(-3).reverse() : [];
 
   if (loading) {
     return (
@@ -72,7 +368,13 @@ export default function Home() {
     );
   }
 
-  if (error) {
+  /**
+   * エラー表示（データが存在しない場合）
+   *
+   * エラーが発生し、かつスタンプとNFTが存在しない場合は、
+   * エラーメッセージと再読み込みボタンを表示します。
+   */
+  if (error && stamps.length === 0 && nfts.length === 0) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-6">
         <div className="text-red-800 font-semibold mb-2">エラー</div>
@@ -97,9 +399,20 @@ export default function Home() {
 
         <div className="relative z-10">
           <h1 className="text-4xl font-bold mb-2">
-            {user?.name || "ゲスト"}さん、こんにちは！
+            {user?.name ||
+              (account
+                ? `${account.slice(0, 6)}...${account.slice(-4)}`
+                : "ゲスト")}
+            さん、こんにちは！
           </h1>
           <p className="text-blue-100 mb-6">あなたのキャリアパスポート</p>
+          {error && (
+            <div className="mb-4 bg-yellow-500/20 backdrop-blur-sm rounded-lg p-3 border border-yellow-300/30">
+              <div className="text-yellow-100 text-sm">
+                ⚠️ {error}（ローカルストレージのデータを表示しています）
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-6">
             <div className="bg-white/20 backdrop-blur-sm rounded-xl p-6 border border-white/30">
               <div className="flex items-center space-x-3 mb-2">

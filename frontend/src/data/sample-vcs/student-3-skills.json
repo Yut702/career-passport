@@ -1,0 +1,20 @@
+{
+  "id": "vc_student_3_skills",
+  "type": "skills",
+  "issuer": "教育機関",
+  "issuedAt": "2024-04-01T00:00:00.000Z",
+  "attributes": {
+    "skills": ["TypeScript", "Vue.js", "React", "GraphQL"],
+    "skillLevels": {
+      "TypeScript": "advanced",
+      "Vue.js": "advanced",
+      "React": "advanced",
+      "GraphQL": "intermediate"
+    },
+    "projects": 10,
+    "githubContributions": 300
+  },
+  "verified": true,
+  "description": "スキル証明VC（サンプル）"
+}
+

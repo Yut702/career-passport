@@ -1,0 +1,25 @@
+{
+  "id": "vc_student_6",
+  "type": "studentProfile",
+  "issuer": "教育機関",
+  "issuedAt": "2024-06-20T00:00:00.000Z",
+  "attributes": {
+    "university": "一橋大学",
+    "major": "情報・社会数理",
+    "degree": "学士",
+    "graduationYear": "2025",
+    "gpa": 3.6,
+    "skills": ["R", "Python", "SQL", "Tableau", "統計学"],
+    "languages": {
+      "japanese": "native",
+      "english": "advanced"
+    },
+    "certifications": ["統計検定2級", "TOEIC 900点"],
+    "internshipExperience": true,
+    "researchExperience": false,
+    "dataAnalysisExperience": true
+  },
+  "verified": true,
+  "description": "一橋大学情報・社会数理学科の学生プロフィールVC（サンプル）"
+}
+

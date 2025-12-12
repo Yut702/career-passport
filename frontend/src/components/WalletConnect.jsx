@@ -1,81 +1,50 @@
-import { useState, useEffect } from "react";
+import { useWallet } from "../hooks/useWallet";
+import { formatAddress } from "../lib/utils";
 
+/**
+ * ウォレット接続コンポーネント
+ *
+ * MetaMask などのウォレットと接続するためのUIコンポーネント。
+ * useWallet フックを使用してウォレット接続状態を管理します。
+ *
+ * 機能:
+ * - ウォレット接続ボタンの表示
+ * - 接続済みアカウントの表示
+ * - ウォレット切断機能
+ * - エラーメッセージの表示
+ */
 export default function WalletConnect() {
-  const [account, setAccount] = useState(null);
-  const [isConnecting, setIsConnecting] = useState(false);
+  // useWallet フックから状態と関数を取得
+  const { account, isConnecting, error, connectWallet, disconnectWallet } =
+    useWallet();
 
-  useEffect(() => {
-    // 既存の接続を確認
-    if (typeof window.ethereum !== "undefined") {
-      window.ethereum
-        .request({ method: "eth_accounts" })
-        .then((accounts) => {
-          if (accounts.length > 0) {
-            setAccount(accounts[0]);
-          }
-        });
-    }
-  }, []);
-
-  const connectWallet = async () => {
-    if (typeof window.ethereum === "undefined") {
-      alert("MetaMask がインストールされていません。\nMetaMask をインストールしてから再度お試しください。");
-      return;
-    }
-
-    setIsConnecting(true);
-    try {
-      const accounts = await window.ethereum.request({
-        method: "eth_requestAccounts",
-      });
-      
-      if (accounts.length === 0) {
-        throw new Error("アカウントが選択されませんでした");
-      }
-      
-      setAccount(accounts[0]);
-    } catch (error) {
-      console.error("Error connecting wallet:", error);
-      
-      let errorMessage = "ウォレット接続に失敗しました";
-      if (error.code === 4001) {
-        errorMessage = "接続が拒否されました";
-      } else if (error.code === -32002) {
-        errorMessage = "既に接続リクエストが処理中です";
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      alert(errorMessage);
-    } finally {
-      setIsConnecting(false);
-    }
-  };
-
-  const formatAddress = (address) => {
-    if (!address) return "";
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  };
-
+  // ウォレットが接続されている場合の表示
   if (account) {
     return (
       <div className="flex items-center space-x-2">
-        <span className="text-sm text-gray-600">
-          {formatAddress(account)}
-        </span>
+        <span className="text-sm text-gray-600">{formatAddress(account)}</span>
         <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+        <button
+          onClick={disconnectWallet}
+          className="ml-2 px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+        >
+          切断
+        </button>
       </div>
     );
   }
 
+  // ウォレットが接続されていない場合の表示
   return (
-    <button
-      onClick={connectWallet}
-      disabled={isConnecting}
-      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-    >
-      {isConnecting ? "接続中..." : "ウォレット接続"}
-    </button>
+    <div className="flex flex-col items-center space-y-2">
+      <button
+        onClick={connectWallet}
+        disabled={isConnecting}
+        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+      >
+        {isConnecting ? "接続中..." : "ウォレット接続"}
+      </button>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+    </div>
   );
 }
-

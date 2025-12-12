@@ -1,0 +1,16 @@
+{
+  "id": "vc_student_1_mynumber",
+  "type": "myNumber",
+  "issuer": "デジタル庁",
+  "issuedAt": "2024-01-10T00:00:00.000Z",
+  "attributes": {
+    "name": "山田 太郎",
+    "dateOfBirth": "2000-05-15",
+    "address": "東京都",
+    "myNumber": "hidden",
+    "nationality": "日本"
+  },
+  "verified": true,
+  "description": "マイナンバーカードVC（サンプル）- 個人情報を含むためZKPで選択的に開示"
+}
+
