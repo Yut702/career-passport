@@ -5,6 +5,42 @@ import ProgressBar from "../components/ProgressBar";
 import NFTCard from "../components/NFTCard";
 import { useContracts } from "../hooks/useContracts";
 import { useWallet } from "../hooks/useWallet";
+import { storage } from "../lib/storage";
+
+function getRpcErrorMessage(err) {
+  return err?.data?.message || err?.error?.data?.message || err?.message || "";
+}
+
+function parseBlockOutOfRange(msg) {
+  if (!msg) return null;
+  // 複数のパターンに対応: "block height is X but requested was Y" または "BlockOutOfRangeError: block height is X but requested was Y"
+  const patterns = [
+    /block height is (\d+)\s+but requested was (\d+)/i,
+    /BlockOutOfRangeError[:\s]+block height is (\d+)\s+but requested was (\d+)/i,
+    /block height is (\d+)/i, // heightだけでも抽出
+  ];
+
+  for (const pattern of patterns) {
+    const match = msg.match(pattern);
+    if (match) {
+      const height = Number(match[1]);
+      const requested = match[2] ? Number(match[2]) : null;
+      if (Number.isFinite(height) && height >= 0) {
+        return { height, requested };
+      }
+    }
+  }
+  return null;
+}
+
+function isBlockOutOfRangeError(err) {
+  const msg = getRpcErrorMessage(err);
+  return /BlockOutOfRangeError|block height/i.test(msg);
+}
+
+async function sleep(ms) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 /**
  * マイページ（ユーザー向け）
@@ -33,22 +69,116 @@ export default function MyPage() {
     if (!stampManagerContract || !account) return;
 
     try {
-      // コントラクトの存在確認
-      const contractCode = await stampManagerContract.runner.provider.getCode(
-        stampManagerContract.target
+      // デバッグ: コントラクトアドレスを確認
+      const contractAddress = stampManagerContract.target;
+      console.log(
+        "[MyPage] StampManagerコントラクトアドレス:",
+        contractAddress
       );
-      if (contractCode === "0x" || contractCode === "0x0") {
-        console.warn(
-          "StampManagerコントラクトが存在しません:",
-          stampManagerContract.target
-        );
-        return;
-      }
+      console.log("[MyPage] ユーザーアドレス:", account);
 
       // SFTベースでスタンプを取得（tokenIdsとamountsの配列を返す）
-      const [tokenIds, amounts] = await stampManagerContract.getUserStamps(
-        account
-      );
+      let tokenIds, amounts;
+      try {
+        // まずは通常の呼び出し（MetaMask/Anvil環境で blockTag を先読みすると逆にズレることがある）
+        console.log("[MyPage] getUserStampsを呼び出します...");
+        [tokenIds, amounts] = await stampManagerContract.getUserStamps(account);
+        console.log("[MyPage] getUserStamps成功:", { tokenIds, amounts });
+      } catch (stampsError) {
+        // BlockOutOfRangeErrorはブロックチェーンの同期問題
+        // エラーメッセージを確認して、適切に処理
+        const errorMessage = getRpcErrorMessage(stampsError);
+        const isBlockOutOfRange = isBlockOutOfRangeError(stampsError);
+        const isCallException =
+          stampsError.code === "CALL_EXCEPTION" ||
+          errorMessage.includes("missing revert data") ||
+          errorMessage.includes("execution reverted");
+
+        if (isBlockOutOfRange) {
+          // BlockOutOfRangeErrorの場合は、エラーメッセージからheightを抜いて、そのheightでリトライ
+          console.warn(
+            "ブロックチェーンのブロック高さが不足しています。heightを抽出してリトライします...",
+            "エラーメッセージ:",
+            errorMessage
+          );
+          try {
+            const parsed = parseBlockOutOfRange(errorMessage);
+            console.log("パース結果:", parsed);
+            if (parsed?.height != null && Number.isFinite(parsed.height)) {
+              // エラーから抽出したheightを使用（これがAnvilの実際のブロック高さ）
+              console.log(`ブロック ${parsed.height} でリトライします`);
+              [tokenIds, amounts] = await stampManagerContract.getUserStamps(
+                account,
+                { blockTag: parsed.height }
+              );
+              console.log("✅ リトライ後、スタンプの読み込みに成功しました");
+            } else {
+              // パースできない場合は、プロバイダーから現在のブロック番号を取得
+              console.warn("heightの抽出に失敗。プロバイダーから取得します...");
+              const provider = stampManagerContract.runner?.provider;
+              if (provider) {
+                try {
+                  const currentBlock = await provider.getBlockNumber();
+                  console.log(
+                    `プロバイダーから取得したブロック番号: ${currentBlock}`
+                  );
+                  [tokenIds, amounts] =
+                    await stampManagerContract.getUserStamps(account, {
+                      blockTag: currentBlock,
+                    });
+                  console.log(
+                    "✅ プロバイダーから取得したブロックでリトライ成功"
+                  );
+                } catch (providerError) {
+                  console.warn(
+                    "プロバイダーからの取得も失敗。短時間待って再試行...",
+                    getRpcErrorMessage(providerError)
+                  );
+                  await sleep(500);
+                  [tokenIds, amounts] =
+                    await stampManagerContract.getUserStamps(account);
+                  console.log("✅ 通常呼び出しでリトライ成功");
+                }
+              } else {
+                // プロバイダーが取得できない場合は短時間待って通常の呼び出しを再試行
+                await sleep(500);
+                [tokenIds, amounts] = await stampManagerContract.getUserStamps(
+                  account
+                );
+                console.log("✅ 通常呼び出しでリトライ成功");
+              }
+            }
+          } catch (retryError) {
+            // リトライでもエラーが発生した場合は、空の配列で続行
+            console.warn(
+              "リトライに失敗しました。空の配列で続行します。",
+              getRpcErrorMessage(retryError)
+            );
+            tokenIds = [];
+            amounts = [];
+          }
+        } else if (isCallException) {
+          // missing revert dataエラーは、コントラクトが存在しないか、関数が実装されていない場合に発生
+          console.warn(
+            "StampManagerコントラクトのgetUserStamps呼び出しに失敗しました。コントラクトが正しくデプロイされているか確認してください。"
+          );
+          // フォールバック: ローカルストレージのキャッシュを表示（新規スタンプは反映されないが、画面は壊さない）
+          const cachedStamps = storage.getStamps() || [];
+          const groups = {};
+          cachedStamps.forEach((stamp) => {
+            const org = stamp.organization || "Unknown";
+            if (!groups[org]) groups[org] = [];
+            groups[org].push(stamp);
+          });
+          setOrganizationGroups(groups);
+          setError(
+            "ブロックチェーンからスタンプを取得できませんでした（.env.localのコントラクトアドレスが古い可能性）。キャッシュを表示しています。"
+          );
+          return;
+        } else {
+          throw stampsError; // 他のエラーは再スロー
+        }
+      }
 
       // 各tokenIdのメタデータを取得
       const formattedStamps = [];
@@ -112,7 +242,22 @@ export default function MyPage() {
           "コントラクト呼び出しエラー: コントラクトが存在しないか、関数が実装されていません"
         );
         // エラーメッセージは表示しない（ユーザーには影響しない）
+      } else if (
+        error.message &&
+        (error.message.includes("BlockOutOfRangeError") ||
+          error.message.includes("block height"))
+      ) {
+        // BlockOutOfRangeErrorは無視（ブロックチェーンの同期問題）
+        console.warn(
+          "ブロックチェーンのブロック高さが不足しています。スタンプの読み込みをスキップします。"
+        );
+        // エラーメッセージは表示しない
       } else {
+        // その他のエラーは警告として記録
+        console.warn(
+          "スタンプの読み込み中にエラーが発生しました:",
+          error.message
+        );
         setError("スタンプの読み込みに失敗しました");
       }
     }
@@ -126,10 +271,36 @@ export default function MyPage() {
 
     try {
       // コントラクトの存在確認
-      const contractCode = await nftContract.runner.provider.getCode(
-        nftContract.target
-      );
-      if (contractCode === "0x" || contractCode === "0x0") {
+      let contractCode;
+      try {
+        contractCode = await nftContract.runner.provider.getCode(
+          nftContract.target
+        );
+      } catch (codeError) {
+        // BlockOutOfRangeErrorなどのネットワークエラーを処理
+        if (isBlockOutOfRangeError(codeError)) {
+          console.warn(
+            "ブロックチェーンのブロック高さが不足しています。NFTの読み込みを続行します..."
+          );
+          // height が取れる場合は、その height で getCode を再試行
+          const msg = getRpcErrorMessage(codeError);
+          const parsed = parseBlockOutOfRange(msg);
+          if (parsed?.height != null && Number.isFinite(parsed.height)) {
+            try {
+              contractCode = await nftContract.runner.provider.getCode(
+                nftContract.target,
+                parsed.height
+              );
+            } catch {
+              // 再試行に失敗しても続行
+            }
+          }
+        } else {
+          throw codeError; // 他のエラーは再スロー
+        }
+      }
+
+      if (contractCode && (contractCode === "0x" || contractCode === "0x0")) {
         console.warn(
           "NonFungibleCareerNFTコントラクトが存在しません:",
           nftContract.target
@@ -138,7 +309,53 @@ export default function MyPage() {
       }
 
       // 総供給量を取得
-      const totalSupply = await nftContract.getTotalSupply();
+      let totalSupply;
+      try {
+        // まずは通常の呼び出し（blockTag先読みでズレるケースを回避）
+        totalSupply = await nftContract.getTotalSupply();
+      } catch (supplyError) {
+        // BlockOutOfRangeErrorはブロックチェーンの同期問題
+        const errorMessage = getRpcErrorMessage(supplyError);
+        const isBlockOutOfRange = isBlockOutOfRangeError(supplyError);
+
+        if (isBlockOutOfRange) {
+          // BlockOutOfRangeErrorの場合は、エラーメッセージからheightを抜いて、そのheightでリトライ
+          console.warn(
+            "ブロックチェーンのブロック高さが不足しています。heightを抽出してリトライします..."
+          );
+          try {
+            const parsed = parseBlockOutOfRange(errorMessage);
+            if (parsed?.height != null && Number.isFinite(parsed.height)) {
+              totalSupply = await nftContract.getTotalSupply({
+                blockTag: parsed.height,
+              });
+            } else {
+              await sleep(250);
+              totalSupply = await nftContract.getTotalSupply();
+            }
+            console.log("✅ リトライ後、NFTの総供給量の読み込みに成功しました");
+          } catch (retryError) {
+            // リトライでもエラーが発生した場合は、NFTの読み込みをスキップ
+            console.warn(
+              "リトライに失敗しました。NFTの読み込みをスキップします。",
+              getRpcErrorMessage(retryError)
+            );
+            return; // NFTの読み込みをスキップ
+          }
+        } else if (
+          supplyError.code === "CALL_EXCEPTION" ||
+          errorMessage.includes("missing revert data") ||
+          errorMessage.includes("execution reverted")
+        ) {
+          // missing revert dataエラーは、コントラクトが存在しないか、関数が実装されていない場合に発生
+          console.warn(
+            "NFTコントラクトのgetTotalSupply呼び出しに失敗しました。コントラクトが正しくデプロイされているか確認してください。"
+          );
+          return; // NFTの読み込みをスキップ
+        } else {
+          throw supplyError; // 他のエラーは再スロー
+        }
+      }
 
       // すべてのNFTを確認して、ユーザーが所有するものを取得
       const userNFTs = [];
@@ -177,6 +394,19 @@ export default function MyPage() {
           "コントラクト呼び出しエラー: コントラクトが存在しないか、関数が実装されていません"
         );
         // エラーメッセージは表示しない（ユーザーには影響しない）
+      } else if (
+        error.message &&
+        (error.message.includes("BlockOutOfRangeError") ||
+          error.message.includes("block height"))
+      ) {
+        // BlockOutOfRangeErrorは無視（ブロックチェーンの同期問題）
+        console.warn(
+          "ブロックチェーンのブロック高さが不足しています。NFTの読み込みをスキップします。"
+        );
+        // エラーメッセージは表示しない
+      } else {
+        // その他のエラーは警告として記録
+        console.warn("NFTの読み込み中にエラーが発生しました:", error.message);
       }
     }
   }, [nftContract, account]);
@@ -224,18 +454,7 @@ export default function MyPage() {
 
         for (const org of orgs) {
           try {
-            // コントラクトの存在確認
-            const contractCode =
-              await stampManagerContract.runner.provider.getCode(
-                stampManagerContract.target
-              );
-            if (contractCode === "0x" || contractCode === "0x0") {
-              console.warn(
-                "StampManagerコントラクトが存在しません:",
-                stampManagerContract.target
-              );
-              continue;
-            }
+            // コントラクトの存在確認はスキップ（MetaMask/Anvil環境でBlockOutOfRangeErrorになりやすいため）
 
             // ブロックチェーンから直接組織別スタンプ数を取得
             const count = await stampManagerContract.getOrganizationStampCount(
@@ -297,19 +516,6 @@ export default function MyPage() {
       // 少し待ってからNFT発行可能性をチェック（ブロックチェーンの状態が更新されるまで）
       setTimeout(async () => {
         try {
-          // コントラクトの存在確認
-          const contractCode =
-            await stampManagerContract.runner.provider.getCode(
-              stampManagerContract.target
-            );
-          if (contractCode === "0x" || contractCode === "0x0") {
-            console.warn(
-              "StampManagerコントラクトが存在しません:",
-              stampManagerContract.target
-            );
-            return;
-          }
-
           const count = await stampManagerContract.getOrganizationStampCount(
             account,
             organization
@@ -329,7 +535,55 @@ export default function MyPage() {
             // NFTコントラクトから直接確認
             let hasExistingNFT = false;
             try {
-              const totalSupply = await nftContract.getTotalSupply();
+              let totalSupply;
+              try {
+                // まずは通常の呼び出し（blockTag先読みでズレるケースを回避）
+                totalSupply = await nftContract.getTotalSupply();
+              } catch (supplyError) {
+                // BlockOutOfRangeErrorはブロックチェーンの同期問題
+                const errorMessage = getRpcErrorMessage(supplyError);
+                const isBlockOutOfRange = isBlockOutOfRangeError(supplyError);
+
+                if (isBlockOutOfRange) {
+                  // BlockOutOfRangeErrorの場合は、エラーメッセージからheightを抜いて、そのheightでリトライ
+                  console.warn(
+                    "ブロックチェーンのブロック高さが不足しています。heightを抽出してリトライします..."
+                  );
+                  try {
+                    const parsed = parseBlockOutOfRange(errorMessage);
+                    if (
+                      parsed?.height != null &&
+                      Number.isFinite(parsed.height)
+                    ) {
+                      totalSupply = await nftContract.getTotalSupply({
+                        blockTag: parsed.height,
+                      });
+                    } else {
+                      await sleep(250);
+                      totalSupply = await nftContract.getTotalSupply();
+                    }
+                  } catch (retryError) {
+                    // リトライでもエラーが発生した場合は、既存NFTがないものとして扱う
+                    console.warn(
+                      "リトライに失敗しました。既存NFTのチェックをスキップします。",
+                      getRpcErrorMessage(retryError)
+                    );
+                    totalSupply = 0; // 既存NFTがないものとして扱う
+                  }
+                } else if (
+                  // missing revert dataエラーは、コントラクトが存在しないか、関数が実装されていない場合に発生
+                  supplyError.code === "CALL_EXCEPTION" ||
+                  errorMessage.includes("missing revert data") ||
+                  errorMessage.includes("execution reverted")
+                ) {
+                  console.warn(
+                    "NFTコントラクトのgetTotalSupply呼び出しに失敗しました。既存NFTのチェックをスキップします。"
+                  );
+                  totalSupply = 0; // 既存NFTがないものとして扱う
+                } else {
+                  throw supplyError; // 他のエラーは再スロー
+                }
+              }
               for (let i = 0; i < Number(totalSupply); i++) {
                 try {
                   const owner = await nftContract.ownerOf(i);
@@ -572,10 +826,7 @@ export default function MyPage() {
     );
   }
 
-  if (
-    (error && !organizationGroups) ||
-    Object.keys(organizationGroups).length === 0
-  ) {
+  if (error && Object.keys(organizationGroups).length === 0) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-6">
         <div className="text-red-800 font-semibold mb-2">エラー</div>

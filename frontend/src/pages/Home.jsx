@@ -6,6 +6,41 @@ import { useContracts } from "../hooks/useContracts";
 import { useWallet } from "../hooks/useWallet";
 import { storage } from "../lib/storage";
 
+function getRpcErrorMessage(err) {
+  return err?.data?.message || err?.error?.data?.message || err?.message || "";
+}
+
+function parseBlockOutOfRange(msg) {
+  if (!msg) return null;
+  // 複数のパターンに対応: "block height is X but requested was Y" または "BlockOutOfRangeError: block height is X but requested was Y"
+  const patterns = [
+    /block height is (\d+)\s+but requested was (\d+)/i,
+    /BlockOutOfRangeError[:\s]+block height is (\d+)\s+but requested was (\d+)/i,
+    /block height is (\d+)/i, // heightだけでも抽出
+  ];
+
+  for (const pattern of patterns) {
+    const match = msg.match(pattern);
+    if (match) {
+      const height = Number(match[1]);
+      const requested = match[2] ? Number(match[2]) : null;
+      if (Number.isFinite(height) && height >= 0) {
+        return { height, requested };
+      }
+    }
+  }
+  return null;
+}
+
+function isBlockOutOfRangeError(err) {
+  const msg = getRpcErrorMessage(err);
+  return /BlockOutOfRangeError|block height/i.test(msg);
+}
+
+async function sleep(ms) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
  * ユーザーダッシュボード（ホーム画面）
  *
@@ -137,9 +172,108 @@ export default function Home() {
        * SFTベースの実装では、戻り値は (tokenIds, amounts) のタプルです。
        * 各tokenIdのメタデータを取得して、数量分だけスタンプを追加します。
        */
-      const [tokenIds, amounts] = await stampManagerContract.getUserStamps(
-        account
-      );
+      let tokenIds, amounts;
+      try {
+        // デバッグ: コントラクトアドレスを確認
+        const contractAddress = stampManagerContract.target;
+        console.log(
+          "[Home] StampManagerコントラクトアドレス:",
+          contractAddress
+        );
+        console.log("[Home] ユーザーアドレス:", account);
+
+        // まずは通常の呼び出し（MetaMask/Anvil環境で blockTag を先読みすると逆にズレることがある）
+        console.log("[Home] getUserStampsを呼び出します...");
+        [tokenIds, amounts] = await stampManagerContract.getUserStamps(account);
+        console.log("[Home] getUserStamps成功:", { tokenIds, amounts });
+      } catch (stampsError) {
+        // エラーメッセージを確認して、適切に処理
+        const errorMessage = getRpcErrorMessage(stampsError);
+        const isBlockOutOfRange = isBlockOutOfRangeError(stampsError);
+        const isCallException =
+          stampsError.code === "CALL_EXCEPTION" ||
+          errorMessage.includes("missing revert data") ||
+          errorMessage.includes("execution reverted");
+
+        if (isBlockOutOfRange) {
+          // BlockOutOfRangeErrorの場合は、エラーメッセージからheightを抜いて、そのheightでリトライ
+          console.warn(
+            "[Home] ブロックチェーンのブロック高さが不足しています。heightを抽出してリトライします...",
+            "エラーメッセージ:",
+            errorMessage
+          );
+          try {
+            const parsed = parseBlockOutOfRange(errorMessage);
+            console.log("[Home] パース結果:", parsed);
+            if (parsed?.height != null && Number.isFinite(parsed.height)) {
+              // エラーから抽出したheightを使用（これがAnvilの実際のブロック高さ）
+              console.log(`[Home] ブロック ${parsed.height} でリトライします`);
+              [tokenIds, amounts] = await stampManagerContract.getUserStamps(
+                account,
+                { blockTag: parsed.height }
+              );
+              console.log(
+                "[Home] ✅ リトライ後、スタンプの読み込みに成功しました"
+              );
+            } else {
+              // パースできない場合は、プロバイダーから現在のブロック番号を取得
+              console.warn(
+                "[Home] heightの抽出に失敗。プロバイダーから取得します..."
+              );
+              const provider = stampManagerContract.runner?.provider;
+              if (provider) {
+                try {
+                  const currentBlock = await provider.getBlockNumber();
+                  console.log(
+                    `[Home] プロバイダーから取得したブロック番号: ${currentBlock}`
+                  );
+                  [tokenIds, amounts] =
+                    await stampManagerContract.getUserStamps(account, {
+                      blockTag: currentBlock,
+                    });
+                  console.log(
+                    "[Home] ✅ プロバイダーから取得したブロックでリトライ成功"
+                  );
+                } catch (providerError) {
+                  console.warn(
+                    "[Home] プロバイダーからの取得も失敗。短時間待って再試行...",
+                    getRpcErrorMessage(providerError)
+                  );
+                  await sleep(500);
+                  [tokenIds, amounts] =
+                    await stampManagerContract.getUserStamps(account);
+                  console.log("[Home] ✅ 通常呼び出しでリトライ成功");
+                }
+              } else {
+                // プロバイダーが取得できない場合は短時間待って通常の呼び出しを再試行
+                await sleep(500);
+                [tokenIds, amounts] = await stampManagerContract.getUserStamps(
+                  account
+                );
+                console.log("[Home] ✅ 通常呼び出しでリトライ成功");
+              }
+            }
+          } catch (retryError) {
+            // リトライでもエラーが発生した場合は、ローカルストレージから読み込む
+            console.warn(
+              "[Home] リトライに失敗しました。ローカルストレージから読み込みます。",
+              getRpcErrorMessage(retryError)
+            );
+            loadDataFromStorage();
+            return;
+          }
+        } else if (isCallException) {
+          // missing revert dataエラーは、コントラクトが存在しないか、関数が実装されていない場合に発生
+          console.warn(
+            "[Home] StampManagerコントラクトのgetUserStamps呼び出しに失敗しました。コントラクトが正しくデプロイされているか確認してください。"
+          );
+          // エラー時はローカルストレージから読み込む（フォールバック）
+          loadDataFromStorage();
+          return;
+        } else {
+          throw stampsError; // 他のエラーは再スロー
+        }
+      }
 
       /**
        * ステップ2-1: スタンプデータを整形
