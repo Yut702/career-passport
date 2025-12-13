@@ -60,15 +60,29 @@ export default function MyPage() {
           // StampManager経由でメタデータを取得（SFTコントラクトの直接アクセスは不要）
           const metadata = await stampManagerContract.getStampMetadata(tokenId);
 
+          // Ethers.js v6では構造体が配列として返される場合があるため、両方の形式に対応
+          const stampName = Array.isArray(metadata)
+            ? metadata[0]
+            : metadata.name;
+          const stampOrganization = Array.isArray(metadata)
+            ? metadata[1]
+            : metadata.organization;
+          const stampCategory = Array.isArray(metadata)
+            ? metadata[2]
+            : metadata.category;
+          const stampCreatedAt = Array.isArray(metadata)
+            ? metadata[3]
+            : metadata.createdAt;
+
           // 数量分だけスタンプを追加
           for (let j = 0; j < Number(amount); j++) {
             formattedStamps.push({
               id: tokenId.toString() + "-" + j, // 一意のIDを生成
               tokenId: tokenId.toString(),
-              name: metadata.name,
-              organization: metadata.organization,
-              category: metadata.category,
-              issuedAt: new Date(Number(metadata.createdAt) * 1000)
+              name: stampName,
+              organization: stampOrganization,
+              category: stampCategory,
+              issuedAt: new Date(Number(stampCreatedAt) * 1000)
                 .toISOString()
                 .split("T")[0],
               amount: Number(amount),
@@ -350,10 +364,11 @@ export default function MyPage() {
 
                 // NFT を発行（StampManager経由）
                 // mintNFT(address to, string memory uri, string memory name, string memory rarity, string memory organization)
+                // 自動発行であることが分かる名称を使用（企業側で発行するNFT証明書とは区別）
                 const tx = await stampManagerContract.mintNFT(
                   account,
                   `https://example.com/metadata/${Date.now()}.json`,
-                  `${organization} 優秀な成績証明書`,
+                  `${organization} スタンプコレクション証明書`,
                   "Common", // デフォルトはCommon（ルールID 1に基づく）
                   organization
                 );
@@ -459,10 +474,11 @@ export default function MyPage() {
     try {
       // NFT を発行（StampManager経由）
       // mintNFT(address to, string memory uri, string memory name, string memory rarity, string memory organization)
+      // 自動発行であることが分かる名称を使用（企業側で発行するNFT証明書とは区別）
       const tx = await stampManagerContract.mintNFT(
         account,
         `https://example.com/metadata/${Date.now()}.json`,
-        `${organization} 優秀な成績証明書`,
+        `${organization} スタンプコレクション証明書`,
         "Rare",
         organization
       );

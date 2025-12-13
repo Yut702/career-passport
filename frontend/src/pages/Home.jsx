@@ -134,33 +134,77 @@ export default function Home() {
        * StampManager コントラクトの getUserStamps() 関数を使用して、
        * 現在のユーザー（account）が所有するスタンプのリストを取得します。
        *
-       * 戻り値は Solidity の struct 配列で、以下の情報が含まれます：
-       * - id: スタンプID（タイムスタンプ）
-       * - name: スタンプ名
-       * - organization: 発行組織
-       * - category: カテゴリ
-       * - issuedAt: 発行日時（Unix タイムスタンプ）
+       * SFTベースの実装では、戻り値は (tokenIds, amounts) のタプルです。
+       * 各tokenIdのメタデータを取得して、数量分だけスタンプを追加します。
        */
-      const userStamps = await stampManagerContract.getUserStamps(account);
+      const [tokenIds, amounts] = await stampManagerContract.getUserStamps(
+        account
+      );
 
       /**
        * ステップ2-1: スタンプデータを整形
        *
        * ブロックチェーンから取得したスタンプデータを、
        * フロントエンドで使用しやすい形式に変換します。
+       * - 各tokenIdのメタデータを取得
+       * - 数量分だけスタンプを追加
        * - issuedAt を Unix タイムスタンプから日付文字列に変換
-       * - id を文字列形式に変換（一意のIDとして使用）
        */
-      const formattedStamps = userStamps.map((stamp, index) => ({
-        id: `stamp_${index}`, // 一意のID（URL パラメータとして使用）
-        name: stamp.name, // スタンプ名
-        organization: stamp.organization, // 発行組織
-        category: stamp.category, // カテゴリ
-        userAddress: account, // ユーザーアドレス（参加者数の計算に使用）
-        issuedAt: new Date(Number(stamp.issuedAt) * 1000)
-          .toISOString()
-          .split("T")[0], // Unix タイムスタンプを日付文字列に変換（秒→ミリ秒→ISO形式→日付部分のみ）
-      }));
+      const formattedStamps = [];
+      for (let i = 0; i < tokenIds.length; i++) {
+        const tokenId = tokenIds[i];
+        const amount = amounts[i];
+
+        try {
+          // StampManager経由でメタデータを取得
+          const metadata = await stampManagerContract.getStampMetadata(tokenId);
+
+          // デバッグ: メタデータの構造を確認
+          console.log(
+            `[Home] TokenId ${tokenId} のメタデータ:`,
+            metadata,
+            "型:",
+            typeof metadata,
+            "配列か:",
+            Array.isArray(metadata)
+          );
+
+          // Ethers.js v6では構造体が配列として返される場合があるため、両方の形式に対応
+          const stampName = Array.isArray(metadata)
+            ? metadata[0]
+            : metadata.name;
+          const stampOrganization = Array.isArray(metadata)
+            ? metadata[1]
+            : metadata.organization;
+          const stampCategory = Array.isArray(metadata)
+            ? metadata[2]
+            : metadata.category;
+          const stampCreatedAt = Array.isArray(metadata)
+            ? metadata[3]
+            : metadata.createdAt;
+
+          // デバッグ: 抽出した値を確認
+          console.log(`[Home] TokenId ${tokenId} のスタンプ名:`, stampName);
+
+          // 数量分だけスタンプを追加
+          for (let j = 0; j < Number(amount); j++) {
+            formattedStamps.push({
+              id: tokenId.toString() + "-" + j, // 一意のIDを生成
+              tokenId: tokenId.toString(),
+              name: stampName, // スタンプ名
+              organization: stampOrganization, // 発行組織
+              category: stampCategory, // カテゴリ
+              userAddress: account, // ユーザーアドレス（参加者数の計算に使用）
+              issuedAt: new Date(Number(stampCreatedAt) * 1000)
+                .toISOString()
+                .split("T")[0], // Unix タイムスタンプを日付文字列に変換（秒→ミリ秒→ISO形式→日付部分のみ）
+              amount: Number(amount),
+            });
+          }
+        } catch (err) {
+          console.warn(`TokenId ${tokenId}のメタデータ取得に失敗:`, err);
+        }
+      }
 
       setStamps(formattedStamps);
 
