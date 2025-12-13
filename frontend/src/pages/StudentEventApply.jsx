@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useWallet } from "../hooks/useWallet";
 import { eventAPI } from "../lib/api";
 import { formatOrganization } from "../lib/utils";
+import { storage } from "../lib/storage";
 
 export default function StudentEventApply() {
   const { id } = useParams();
@@ -13,6 +14,8 @@ export default function StudentEventApply() {
     motivation: "",
     experience: "",
   });
+  const [availableProofs, setAvailableProofs] = useState([]);
+  const [selectedProofId, setSelectedProofId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
@@ -79,6 +82,16 @@ export default function StudentEventApply() {
     loadMyApplications();
   }, [isConnected, account, id]);
 
+  // 利用可能なZKP証明を読み込む
+  useEffect(() => {
+    const proofs = storage.getZKPProofs();
+    // 検証済みの証明のみを表示
+    const verifiedProofs = proofs.filter(
+      (p) => p.verifyResult?.verified === true
+    );
+    setAvailableProofs(verifiedProofs);
+  }, []);
+
   const handleChange = (e) => {
     setFormData({
       ...formData,
@@ -100,9 +113,29 @@ export default function StudentEventApply() {
     setSubmitting(true);
 
     try {
-      // APIに応募情報を送信
-      const applicationText = `${formData.motivation}\n\n【経験・スキル】\n${formData.experience}`;
-      console.log("📤 応募送信:", { eventId: id, walletAddress: account });
+      // 選択されたZKP証明を取得
+      let zkpProofData = null;
+      if (selectedProofId) {
+        zkpProofData = storage.getZKPProofById(selectedProofId);
+      }
+
+      // APIに応募情報を送信（ZKP証明データを含む）
+      let applicationText = `${formData.motivation}\n\n【経験・スキル】\n${formData.experience}`;
+
+      // ZKP証明が選択されている場合は、JSON形式で添付
+      if (zkpProofData) {
+        const proofAttachment = JSON.stringify({
+          type: "ZKP_PROOF",
+          ...zkpProofData,
+        });
+        applicationText += `\n\n【ZKP証明データ】\n${proofAttachment}`;
+      }
+
+      console.log("📤 応募送信:", {
+        eventId: id,
+        walletAddress: account,
+        hasZKPProof: !!zkpProofData,
+      });
 
       const response = await eventAPI.apply(id, account, applicationText);
 
@@ -310,6 +343,65 @@ export default function StudentEventApply() {
                 placeholder="関連する経験やスキルを記入してください"
                 disabled={submitting || !isConnected}
               />
+            </div>
+
+            {/* ZKP証明選択 */}
+            <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-200">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                🔐 ZKP証明を添付（オプション）
+              </label>
+              <p className="text-xs text-gray-600 mb-3">
+                個人情報を開示せずに条件を満たすことを証明できます。VC管理ページで証明を生成・検証してください。
+              </p>
+              {availableProofs.length === 0 ? (
+                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-xs text-yellow-800">
+                    ⚠️
+                    利用可能なZKP証明がありません。VC管理ページで証明を生成・検証してください。
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/student/settings?tab=zkp")}
+                    className="mt-2 text-xs text-indigo-600 hover:text-indigo-700 underline"
+                  >
+                    VC管理ページを開く
+                  </button>
+                </div>
+              ) : (
+                <select
+                  value={selectedProofId || ""}
+                  onChange={(e) => setSelectedProofId(e.target.value || null)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+                  disabled={submitting || !isConnected}
+                >
+                  <option value="">証明を選択しない</option>
+                  {availableProofs.map((proof) => (
+                    <option key={proof.id} value={proof.id}>
+                      {proof.proofHash
+                        ? `証明 ${proof.proofHash.slice(0, 16)}... (${
+                            proof.usedVCs
+                              ?.map((vc) => {
+                                const names = {
+                                  myNumber: "マイナンバー",
+                                  toeic: "TOEIC",
+                                  degree: "学位",
+                                };
+                                return names[vc.type] || vc.type;
+                              })
+                              .join(", ") || "不明"
+                          })`
+                        : `証明 ${proof.id}`}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {selectedProofId && (
+                <div className="mt-3 p-3 bg-white rounded-lg border border-indigo-200">
+                  <p className="text-xs text-gray-700">
+                    ✅ 選択された証明が応募に添付されます
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end space-x-4 pt-4">

@@ -73,7 +73,9 @@ export default function OrgLayout({ children }) {
               <Link
                 to="/org/recruitment-conditions"
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  location.pathname.startsWith("/org/recruitment") || location.pathname.startsWith("/org/candidate") || location.pathname.startsWith("/org/matched-candidates")
+                  location.pathname.startsWith("/org/recruitment") ||
+                  location.pathname.startsWith("/org/candidate") ||
+                  location.pathname.startsWith("/org/matched-candidates")
                     ? "bg-purple-100 text-purple-700"
                     : "text-gray-700 hover:bg-gray-100"
                 }`}
@@ -117,4 +119,3 @@ export default function OrgLayout({ children }) {
     </div>
   );
 }
-

@@ -63,6 +63,8 @@ Day 8:    テストとアプリ完成度向上        ✅ 完了
   - メッセージ API ✅
   - マッチング API ✅
   - イベント管理 API ✅
+  - 求人/採用条件 API ✅
+  - ZKP 証明 API ✅
   - DynamoDB 統合 ✅
 - **データベース設計**: 100% ✅
 - **リファクタリング**: 100% ✅
@@ -77,9 +79,10 @@ Day 8:    テストとアプリ完成度向上        ✅ 完了
 - イベント一覧・応募
 - 応募履歴確認
 - 求人条件設定・検索
-- マッチング企業一覧
-- メッセージ機能
-- VC 管理・ZKP 生成
+- マッチング企業一覧・詳細
+- メッセージ機能（企業アドレス自動入力）
+- VC 管理・ZKP 生成・保存
+- 検証済み ZKP 証明の選択
 
 #### ✅ 企業向け機能
 
@@ -90,8 +93,9 @@ Day 8:    テストとアプリ完成度向上        ✅ 完了
 - 応募確認・承認/拒否
 - 人材募集条件設定
 - 候補者検索
-- マッチング候補者一覧
-- メッセージ機能
+- マッチング候補者一覧・詳細（成立したマッチング表示）
+- メッセージ機能（候補者アドレス自動入力）
+- 学生のスタンプ・NFT・ZKP 証明の確認
 
 ---
 
@@ -415,25 +419,46 @@ bash scripts/setup-backend.sh
 - 学生と企業の条件をマッチング
 - ZKP（ゼロ知識証明）で条件を満たすことを証明
 - マッチング一覧の表示
+- マッチング作成時に自動メッセージ送信
 
 **技術仕様**:
 
 - データ保存: DynamoDB（`NonFungibleCareerMatches`テーブル）
 - ZKP: VC（Verifiable Credential）から選択的に情報を開示
 - API: RESTful API（Express.js）
+- 自動メッセージ: マッチング作成成功時に学生から企業への初期メッセージを自動送信
 
-#### 6. VC 管理・ZKP 生成 🔐
+#### 6. 求人/採用条件設定 📋
 
 **機能概要**:
 
-- VC（Verifiable Credential）の管理
-- ゼロ知識証明（ZKP）の生成
-- 選択的開示（必要な情報のみを開示）
+- 学生が求人条件を設定・保存
+- 企業が採用条件を設定・保存
+- 条件に基づいた自動マッチング（カテゴリ一致でマッチング候補を表示）
 
 **技術仕様**:
 
-- VC 保存: ローカルストレージ（`/src/data/sample-vcs/`から動的読み込み）
-- ZKP: モック実装（実際の ZKP 実装は今後の拡張）
+- データ保存: DynamoDB（`NonFungibleCareerJobConditions`, `NonFungibleCareerRecruitmentConditions`テーブル）
+- API: RESTful API（Express.js）
+- マッチング条件: 職種カテゴリが一致すればマッチング候補として表示
+
+#### 7. VC 管理・ZKP 生成・保存 🔐
+
+**機能概要**:
+
+- VC（Verifiable Credential）の管理（W3C 形式対応）
+- ゼロ知識証明（ZKP）の生成（TOEIC、学位証明に対応）
+- 選択的開示（必要な情報のみを開示）
+- 検証済み ZKP 証明の保存と選択
+
+**技術仕様**:
+
+- VC 保存: ローカルファイル（`/src/data/sample-vcs/`から動的読み込み、W3C 形式のみ）
+- ZKP 生成: Circom 回路を使用（`toeic.circom`, `degree.circom`）
+- ZKP 保存:
+  - 完全な証明データ: `frontend/src/data/zkp-proofs/`に JSON ファイルとして保存
+  - 公開情報のみ: DynamoDB（`NonFungibleCareerZKPProofs`テーブル）に保存
+- 求人条件での選択: 検証済み ZKP 証明を求人条件に紐付けて選択可能
 
 ---
 
@@ -503,10 +528,21 @@ bash scripts/setup-backend.sh
 ```
 学生
   └─> 求人条件設定 (/student/job-conditions)
-      └─> 求人検索 (/student/job-search)
-          └─> マッチング企業一覧 (/student/matched-companies)
-              └─> ZKPで条件証明
-                  └─> メッセージ送信
+      └─> ZKP証明を選択（検証済み）
+          └─> 求人検索 (/student/job-search)
+              └─> マッチング企業一覧 (/student/matched-companies)
+                  └─> 企業詳細を確認
+                      └─> マッチングを作成
+                          └─> 自動メッセージ送信
+                              └─> メッセージ画面（企業アドレス自動入力）
+
+企業
+  └─> 採用条件設定 (/org/recruitment-conditions)
+      └─> 候補者検索 (/org/candidate-search)
+          └─> 成立したマッチング一覧を確認
+              └─> 候補者詳細を確認
+                  └─> スタンプ・NFT・ZKP証明を確認
+                      └─> メッセージ送信（候補者アドレス自動入力）
 ```
 
 ---
@@ -638,6 +674,18 @@ CareerStampSFT (ERC1155)
 │  │  Matches テーブル               │  │
 │  │  (マッチングデータ)             │  │
 │  └─────────────────────────────────┘  │
+│  ┌─────────────────────────────────┐  │
+│  │  JobConditions テーブル          │  │
+│  │  (求人条件データ)                │  │
+│  └─────────────────────────────────┘  │
+│  ┌─────────────────────────────────┐  │
+│  │  RecruitmentConditions テーブル │  │
+│  │  (採用条件データ)               │  │
+│  └─────────────────────────────────┘  │
+│  ┌─────────────────────────────────┐  │
+│  │  ZKPProofs テーブル             │  │
+│  │  (ZKP証明公開情報)              │  │
+│  └─────────────────────────────────┘  │
 └─────────────────────────────────────────┘
          │
          │
@@ -763,6 +811,76 @@ conversationId = `${address1.toLowerCase()}_${address2.toLowerCase()}`;
 - `matchedAt` (String) - マッチング日時（ISO 8601 形式）
 - `status` (String) - ステータス（`active`, `closed`）
 
+#### 5. 求人条件テーブル (`NonFungibleCareerJobConditions`)
+
+学生の求人条件を管理します。
+
+**プライマリキー**:
+
+- `walletAddress` (String) - 学生のウォレットアドレス
+
+**主要フィールド**:
+
+- `walletAddress` (String) - 学生のウォレットアドレス
+- `jobType` (String) - 仕事の種類（`internship`, `fulltime`）
+- `positionCategory` (String) - 職種カテゴリ
+- `position` (String, optional) - 具体的な職種
+- `location` (String, optional) - 勤務地
+- `industry` (String, optional) - 業界
+- `salary` (String, optional) - 希望給与
+- `workStyle` (String, optional) - 働き方（`remote`, `hybrid`, `office`）
+- `skills` (Array, optional) - 希望スキル
+- `selectedZKPProofs` (Array, optional) - 選択された ZKP 証明 ID のリスト
+- `createdAt` (String) - 作成日時
+- `updatedAt` (String) - 更新日時
+
+#### 6. 採用条件テーブル (`NonFungibleCareerRecruitmentConditions`)
+
+企業の採用条件を管理します。
+
+**プライマリキー**:
+
+- `orgAddress` (String) - 企業のウォレットアドレス
+
+**主要フィールド**:
+
+- `orgAddress` (String) - 企業のウォレットアドレス
+- `jobType` (String) - 仕事の種類（`internship`, `fulltime`）
+- `positionCategory` (String) - 職種カテゴリ
+- `position` (String, optional) - 具体的な職種
+- `location` (String, optional) - 勤務地
+- `industry` (String, optional) - 業界
+- `salary` (String, optional) - 給与
+- `workStyle` (String, optional) - 働き方（`remote`, `hybrid`, `office`）
+- `requiredSkills` (Array, optional) - 必須スキル
+- `preferredSkills` (Array, optional) - 希望スキル
+- `description` (String, optional) - 説明
+- `createdAt` (String) - 作成日時
+- `updatedAt` (String) - 更新日時
+
+#### 7. ZKP 証明テーブル (`NonFungibleCareerZKPProofs`)
+
+ZKP 証明の公開情報を管理します（完全な証明データは`frontend/src/data/zkp-proofs/`に保存）。
+
+**プライマリキー**:
+
+- `proofId` (String) - 証明 ID（`proofHash_timestamp_random`形式）
+
+**グローバルセカンダリインデックス (GSI)**:
+
+- `WalletIndex` - `walletAddress` で検索（ウォレット別の証明一覧取得）
+
+**主要フィールド**:
+
+- `proofId` (String) - 証明 ID
+- `walletAddress` (String) - ウォレットアドレス
+- `proofHash` (String) - 証明のハッシュ
+- `publicInputs` (Object) - 公開入力情報
+- `usedVCs` (Array) - 使用された VC のリスト
+- `satisfiedConditions` (Array) - 満たされた条件のリスト
+- `verified` (Boolean) - 検証済みフラグ
+- `verifiedAt` (String) - 検証日時
+
 ### テーブル作成方法
 
 ```bash
@@ -770,7 +888,7 @@ cd backend
 npm run create-api-tables
 ```
 
-このコマンドで、上記の 4 つのテーブルが作成されます。
+このコマンドで、上記の 7 つのテーブルが作成されます。
 
 ---
 
@@ -815,6 +933,8 @@ npm run create-api-tables
 │  │  Event Routes                   │  │
 │  │  Message Routes                 │  │
 │  │  Match Routes                   │  │
+│  │  JobCondition Routes            │  │
+│  │  ZKPProof Routes                │  │
 │  └─────────────────────────────────┘  │
 │                │                        │
 │         ┌─────▼─────┐                  │
@@ -931,4 +1051,86 @@ cat .env.local
 
 ---
 
-**最終更新**: 2025 年 12 月 11 日（Day 8 完了・プロジェクト完了）
+---
+
+## 最新の機能追加（2025 年 12 月 13 日）
+
+### ✅ 追加された機能
+
+1. **求人/採用条件のデータベース保存**
+
+   - 学生の求人条件を DynamoDB に保存
+   - 企業の採用条件を DynamoDB に保存
+   - 条件保存時に成功メッセージを表示
+
+2. **自動マッチング機能**
+
+   - 職種カテゴリが一致する企業/学生を自動的にマッチング候補として表示
+   - 学生側: `/student/job-search`でマッチング企業を表示
+   - 企業側: `/org/candidate-search`でマッチング候補者を表示
+
+3. **成立したマッチングの表示**
+
+   - 企業側で成立したマッチング一覧を表示
+   - マッチング詳細画面で学生の情報を確認可能
+
+4. **ZKP 証明の保存と選択**
+
+   - 検証済み ZKP 証明を`frontend/src/data/zkp-proofs/`に保存
+   - 公開情報のみを DynamoDB に保存
+   - 求人条件設定時に検証済み ZKP 証明を選択可能
+
+5. **マッチング作成時の自動メッセージ送信**
+
+   - マッチング作成成功時に、学生から企業への初期メッセージを自動送信
+   - メッセージ内容: "マッチングが成立しました。よろしくお願いします。"
+
+6. **メッセージ画面の改善**
+
+   - マッチング画面から遷移した際、宛先アドレスが自動入力される
+   - 学生側: 求人詳細から「メッセージを送る」で企業アドレスが自動入力
+   - 企業側: マッチング詳細から「メッセージを送る」で候補者アドレスが自動入力
+
+7. **VC 管理の改善**
+   - W3C 形式の VC のみを検証対象とする
+   - 検証済み ZKP 証明がある VC に「✅ 検証済み」バッジを表示
+   - マイナンバー（年齢証明）機能を削除
+
+### 📊 データベーステーブル
+
+新規追加されたテーブル:
+
+- `NonFungibleCareerJobConditions` - 学生の求人条件
+- `NonFungibleCareerRecruitmentConditions` - 企業の採用条件
+- `NonFungibleCareerZKPProofs` - ZKP 証明の公開情報
+
+### 🔌 API エンドポイント
+
+新規追加されたエンドポイント:
+
+**求人条件 API**:
+
+- `POST /api/job-conditions` - 学生の求人条件を保存
+- `GET /api/job-conditions?walletAddress=...` - 学生の求人条件を取得
+- `POST /api/job-conditions/recruitment` - 企業の採用条件を保存
+- `GET /api/job-conditions/recruitment?orgAddress=...` - 企業の採用条件を取得
+
+**マッチング検索 API**:
+
+- `GET /api/matches/search/student?walletAddress=...` - 学生側のマッチング候補を検索
+- `GET /api/matches/search/org?walletAddress=...` - 企業側のマッチング候補を検索
+
+**ZKP 証明 API**:
+
+- `POST /api/zkp-proofs` - ZKP 証明を保存（完全データはファイル、公開情報は DB）
+- `GET /api/zkp-proofs?walletAddress=...` - ウォレット別の ZKP 証明一覧を取得
+- `GET /api/zkp-proofs/:proofId` - 証明 ID で公開情報を取得
+- `GET /api/zkp-proofs/:proofId/full` - 証明 ID で完全なデータを取得（ファイルから）
+
+**マッチング API（機能追加）**:
+
+- `POST /api/matches` - マッチング作成時に自動メッセージ送信機能を追加
+
+---
+
+**最終更新**: 2025 年 12 月 13 日（最新機能追加完了）

@@ -23,7 +23,6 @@ export default function Home() {
   const [stamps, setStamps] = useState([]);
   const [nfts, setNfts] = useState([]);
   const [organizationStats, setOrganizationStats] = useState({});
-  const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
 
   /**
@@ -77,9 +76,14 @@ export default function Home() {
        * エラーハンドリング: ローカルストレージからの読み込みに失敗した場合
        *
        * ローカルストレージが無効な場合や、データが破損している場合にエラーが発生します。
+       * ただし、データが存在しない場合は正常な状態として扱います。
        */
-      console.error("Error loading data from storage:", err);
-      setError("データの読み込みに失敗しました");
+      console.warn("Warning: Could not load data from storage:", err);
+      // データが存在しない場合はエラーとしない（新規ユーザーの可能性）
+      setStamps([]);
+      setNfts([]);
+      setOrganizationStats({});
+      // エラーを設定しない（空のデータで表示を続ける）
     } finally {
       /**
        * ローディング状態を解除
@@ -112,7 +116,6 @@ export default function Home() {
     if (!stampManagerContract || !nftContract || !account) return;
 
     setLoading(true);
-    setError(null);
 
     try {
       /**
@@ -283,11 +286,15 @@ export default function Home() {
        * エラーハンドリング: ブロックチェーンからの読み込みに失敗した場合
        *
        * ネットワークエラーやコントラクトエラーが発生した場合、
-       * エラーメッセージを設定し、ローカルストレージから読み込みを試みます。
+       * ローカルストレージから読み込みを試みます。
+       * エラーは警告として記録しますが、ユーザーには表示しません（フォールバックで対応）。
        */
-      console.error("Error loading data:", err);
-      setError("データの読み込みに失敗しました");
+      console.warn(
+        "Warning: Could not load data from blockchain, falling back to storage:",
+        err
+      );
       // エラー時はローカルストレージから読み込む（フォールバック）
+      // エラーメッセージは設定しない（フォールバックで対応するため）
       loadDataFromStorage();
     } finally {
       /**
@@ -308,10 +315,16 @@ export default function Home() {
    * ウォレットが接続されていない場合は、ローカルストレージから読み込みます。
    */
   useEffect(() => {
-    if (isConnected && isReady && account) {
+    // コントラクトが準備できていない場合は待機（エラーを表示しない）
+    if (!isReady) {
+      setLoading(true);
+      return;
+    }
+
+    if (isConnected && account) {
       // ブロックチェーンから読み込む
       loadData();
-    } else if (!isConnected) {
+    } else {
       // ウォレット未接続時はローカルストレージから読み込む（フォールバック）
       loadDataFromStorage();
     }
@@ -369,25 +382,12 @@ export default function Home() {
   }
 
   /**
-   * エラー表示（データが存在しない場合）
+   * エラー表示は削除（空のデータでも表示を続ける）
    *
-   * エラーが発生し、かつスタンプとNFTが存在しない場合は、
-   * エラーメッセージと再読み込みボタンを表示します。
+   * データが存在しない場合でも、エラー画面を表示せずに
+   * 空の状態でダッシュボードを表示します。
+   * これにより、新規ユーザーでもエラー画面が表示されません。
    */
-  if (error && stamps.length === 0 && nfts.length === 0) {
-    return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-        <div className="text-red-800 font-semibold mb-2">エラー</div>
-        <div className="text-red-600">{error}</div>
-        <button
-          onClick={() => window.location.reload()}
-          className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-        >
-          再読み込み
-        </button>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-8">
@@ -406,10 +406,11 @@ export default function Home() {
             さん、こんにちは！
           </h1>
           <p className="text-blue-100 mb-6">あなたのキャリアパスポート</p>
-          {error && (
-            <div className="mb-4 bg-yellow-500/20 backdrop-blur-sm rounded-lg p-3 border border-yellow-300/30">
-              <div className="text-yellow-100 text-sm">
-                ⚠️ {error}（ローカルストレージのデータを表示しています）
+          {!isConnected && (
+            <div className="mb-4 bg-blue-500/20 backdrop-blur-sm rounded-lg p-3 border border-blue-300/30">
+              <div className="text-blue-100 text-sm">
+                💡
+                ウォレットを接続すると、ブロックチェーンから最新のデータを取得できます
               </div>
             </div>
           )}
