@@ -9,8 +9,9 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
  * @title CareerStampSFT
  * @dev キャリアスタンプをSFT（Semi-Fungible Token、ERC1155）として実装
  * 
- * スタンプは企業とカテゴリの組み合わせで識別され、同じタイプのスタンプは複数枚持つことができます。
+ * スタンプは企業、カテゴリ、名前の組み合わせで識別され、同じタイプのスタンプは複数枚持つことができます。
  * 各スタンプタイプは異なるtokenIdとして管理されます。
+ * 同じ企業・カテゴリでも、異なる名前のスタンプは別のtokenIdとして扱われます。
  */
 contract CareerStampSFT is ERC1155, Ownable {
     using Strings for uint256;
@@ -26,8 +27,9 @@ contract CareerStampSFT is ERC1155, Ownable {
     // tokenId => スタンプメタデータ
     mapping(uint256 => StampMetadata) public stampMetadata;
     
-    // 組織名とカテゴリの組み合わせ => tokenId
-    mapping(string => mapping(string => uint256)) public orgCategoryToTokenId;
+    // 組織名、カテゴリ、名前の組み合わせ => tokenId
+    // 名前も含めて識別することで、同じ組織・カテゴリでも異なる名前のスタンプを区別できる
+    mapping(string => mapping(string => mapping(string => uint256))) public orgCategoryNameToTokenId;
     
     // 次のtokenId
     uint256 private _nextTokenId = 1;
@@ -65,12 +67,13 @@ contract CareerStampSFT is ERC1155, Ownable {
         uint256 amount
     ) public onlyOwner returns (uint256) {
         // 既存のtokenIdを確認、なければ新規作成
-        uint256 tokenId = orgCategoryToTokenId[organization][category];
+        // 組織・カテゴリ・名前の組み合わせで識別
+        uint256 tokenId = orgCategoryNameToTokenId[organization][category][name];
         
         if (tokenId == 0) {
             // 新しいスタンプタイプを作成
             tokenId = _nextTokenId++;
-            orgCategoryToTokenId[organization][category] = tokenId;
+            orgCategoryNameToTokenId[organization][category][name] = tokenId;
             
             stampMetadata[tokenId] = StampMetadata({
                 name: name,
@@ -101,17 +104,41 @@ contract CareerStampSFT is ERC1155, Ownable {
     }
 
     /**
-     * @dev 組織とカテゴリからtokenIdを取得
+     * @dev 組織、カテゴリ、名前からtokenIdを取得
      * @param organization 組織名
      * @param category カテゴリ
+     * @param name スタンプ名
      * @return tokenId トークンID（存在しない場合は0）
      */
-    function getTokenIdByOrgCategory(string memory organization, string memory category) 
+    function getTokenIdByOrgCategoryName(
+        string memory organization, 
+        string memory category,
+        string memory name
+    ) 
         public 
         view 
         returns (uint256) 
     {
-        return orgCategoryToTokenId[organization][category];
+        return orgCategoryNameToTokenId[organization][category][name];
+    }
+    
+    /**
+     * @dev 組織とカテゴリからtokenIdを取得（後方互換性のため残す）
+     * @param _organization 組織名（未使用、後方互換性のため）
+     * @param _category カテゴリ（未使用、後方互換性のため）
+     * @return tokenId トークンID（常に0を返す）
+     * @notice この関数は非推奨です。getTokenIdByOrgCategoryNameを使用してください。
+     */
+    function getTokenIdByOrgCategory(string memory _organization, string memory _category) 
+        public 
+        pure 
+        returns (uint256) 
+    {
+        // 後方互換性のため残しているが、名前が指定されていないため正確なtokenIdを返せない
+        // 実際の使用では、名前も指定するgetTokenIdByOrgCategoryNameを使用すべき
+        _organization; // 未使用変数の警告を抑制
+        _category; // 未使用変数の警告を抑制
+        return 0;
     }
 
     /**

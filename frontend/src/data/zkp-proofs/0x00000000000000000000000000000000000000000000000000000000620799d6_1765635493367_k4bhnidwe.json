@@ -1,0 +1,58 @@
+{
+  "proofs": [
+    {
+      "type": "degree",
+      "proof": {
+        "skipped": true
+      },
+      "publicSignals": []
+    }
+  ],
+  "publicInputs": {
+    "university": "東京大学",
+    "major": "情報工学科",
+    "degree": "学士"
+  },
+  "hiddenAttributes": {},
+  "satisfiedConditions": [
+    {
+      "type": "degree",
+      "condition": "学位証明書VCが存在",
+      "satisfied": true
+    }
+  ],
+  "usedVCs": [
+    {
+      "id": "vc_student_1_degree",
+      "type": "degree",
+      "issuer": "東京大学"
+    }
+  ],
+  "timestamp": "2025-12-13T14:18:08.768Z",
+  "proofHash": "0x00000000000000000000000000000000000000000000000000000000620799d6",
+  "conditions": {
+    "minToeicScore": 800,
+    "minGpa": 0
+  },
+  "verifyResult": {
+    "verified": true,
+    "results": [
+      {
+        "type": "degree",
+        "verified": true,
+        "skipped": true,
+        "message": "GPA条件なし（学位証明書VCの存在のみ証明）"
+      }
+    ],
+    "conditions": [
+      {
+        "type": "degree",
+        "condition": "学位証明書VCが存在",
+        "satisfied": true
+      }
+    ],
+    "timestamp": "2025-12-13T14:18:08.768Z",
+    "verifiedAt": "2025-12-13T14:18:13.359Z"
+  },
+  "id": "0x00000000000000000000000000000000000000000000000000000000620799d6_1765635493359_bqtyra39y"
+}
