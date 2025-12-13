@@ -44,10 +44,18 @@ export default function OrgMessages() {
                 conv.otherAddress.toLowerCase() === candidateId.toLowerCase()
             );
             if (candidate) {
+              // 既存の会話がある場合
               setSelectedCandidate({
                 walletAddress: candidate.otherAddress,
                 conversationId: candidate.conversationId,
                 otherInfo: candidate.otherInfo,
+              });
+            } else {
+              // 既存の会話がない場合、新規会話として候補者アドレスを設定
+              setSelectedCandidate({
+                walletAddress: candidateId,
+                conversationId: null, // 最初のメッセージ送信時に生成される
+                otherInfo: { walletAddress: candidateId },
               });
             }
           } else if (response.conversations.length > 0) {
@@ -59,10 +67,26 @@ export default function OrgMessages() {
               otherInfo: firstConv.otherInfo,
             });
           }
+        } else if (candidateId) {
+          // 会話一覧が取得できなかったが、candidateIdが指定されている場合
+          // 新規会話として候補者アドレスを設定
+          setSelectedCandidate({
+            walletAddress: candidateId,
+            conversationId: null,
+            otherInfo: { walletAddress: candidateId },
+          });
         }
       } catch (err) {
         console.error("Error loading conversations:", err);
         setError("会話一覧の取得に失敗しました");
+        // エラーでもcandidateIdが指定されている場合は新規会話として設定
+        if (candidateId) {
+          setSelectedCandidate({
+            walletAddress: candidateId,
+            conversationId: null,
+            otherInfo: { walletAddress: candidateId },
+          });
+        }
       } finally {
         setLoading(false);
       }

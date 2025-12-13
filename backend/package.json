@@ -15,6 +15,7 @@
     "create-api-tables": "node scripts/create-api-tables.js",
     "view-data": "node scripts/view-data.js",
     "view-applications": "node scripts/view-applications.js",
+    "view-job-conditions": "node scripts/view-job-conditions.js",
     "check-tables": "node scripts/check-tables.js",
     "check-indexes": "node scripts/check-indexes.js",
     "clean-database": "node scripts/clean-database.js",

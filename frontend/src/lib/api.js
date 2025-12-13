@@ -296,4 +296,127 @@ export const matchAPI = {
       body: JSON.stringify({ status }),
     });
   },
+
+  /**
+   * 学生側から見たマッチング候補を検索
+   *
+   * @param {string} walletAddress - 学生のウォレットアドレス
+   * @returns {Promise<Object>} マッチング候補一覧
+   */
+  searchStudentMatches: async (walletAddress) => {
+    return request(`/matches/search/student?walletAddress=${walletAddress}`);
+  },
+
+  /**
+   * 企業側から見たマッチング候補を検索
+   *
+   * @param {string} walletAddress - 企業のウォレットアドレス
+   * @returns {Promise<Object>} マッチング候補一覧
+   */
+  searchOrgMatches: async (walletAddress) => {
+    return request(`/matches/search/org?walletAddress=${walletAddress}`);
+  },
+};
+
+/**
+ * 求人条件 API
+ */
+export const jobConditionAPI = {
+  /**
+   * 学生側の求人条件を保存
+   *
+   * @param {string} walletAddress - ウォレットアドレス
+   * @param {Object} conditionData - 求人条件データ
+   * @returns {Promise<Object>} 保存結果
+   */
+  saveJobCondition: async (walletAddress, conditionData) => {
+    return request("/job-conditions", {
+      method: "POST",
+      body: JSON.stringify({ walletAddress, ...conditionData }),
+    });
+  },
+
+  /**
+   * 学生側の求人条件を取得
+   *
+   * @param {string} walletAddress - ウォレットアドレス
+   * @returns {Promise<Object>} 求人条件
+   */
+  getJobCondition: async (walletAddress) => {
+    return request(`/job-conditions?walletAddress=${walletAddress}`);
+  },
+
+  /**
+   * 企業側の採用条件を保存
+   *
+   * @param {string} orgAddress - 企業のウォレットアドレス
+   * @param {Object} conditionData - 採用条件データ
+   * @returns {Promise<Object>} 保存結果
+   */
+  saveRecruitmentCondition: async (orgAddress, conditionData) => {
+    return request("/job-conditions/recruitment", {
+      method: "POST",
+      body: JSON.stringify({ orgAddress, ...conditionData }),
+    });
+  },
+
+  /**
+   * 企業側の採用条件を取得
+   *
+   * @param {string} orgAddress - 企業のウォレットアドレス
+   * @returns {Promise<Object>} 採用条件
+   */
+  getRecruitmentCondition: async (orgAddress) => {
+    return request(`/job-conditions/recruitment?orgAddress=${orgAddress}`);
+  },
+};
+
+/**
+ * ZKP証明 API
+ */
+export const zkpProofAPI = {
+  /**
+   * ZKP証明を保存（完全なデータはdataフォルダ、公開情報はデータベース）
+   *
+   * @param {string} walletAddress - ウォレットアドレス
+   * @param {Object} fullProofData - 完全な証明データ
+   * @param {Object} publicInfo - 公開情報のみ
+   * @returns {Promise<Object>} 保存結果
+   */
+  saveZKPProof: async (walletAddress, fullProofData, publicInfo) => {
+    return request("/zkp-proofs", {
+      method: "POST",
+      body: JSON.stringify({ walletAddress, fullProofData, publicInfo }),
+    });
+  },
+
+  /**
+   * ウォレットアドレスでZKP証明の公開情報一覧を取得
+   *
+   * @param {string} walletAddress - ウォレットアドレス
+   * @returns {Promise<Object>} ZKP証明一覧
+   */
+  getZKPProofs: async (walletAddress) => {
+    return request(`/zkp-proofs?walletAddress=${walletAddress}`);
+  },
+
+  /**
+   * 証明IDでZKP証明の公開情報を取得
+   *
+   * @param {string} proofId - 証明ID
+   * @returns {Promise<Object>} ZKP証明
+   */
+  getZKPProofById: async (proofId) => {
+    return request(`/zkp-proofs/${proofId}`);
+  },
+
+  /**
+   * 証明IDでZKP証明の完全なデータを取得
+   *
+   * @param {string} proofId - 証明ID
+   * @returns {Promise<Object>} 完全なZKP証明データ
+   */
+  getZKPProofFull: async (proofId) => {
+    return request(`/zkp-proofs/${proofId}/full`);
+  },
 };

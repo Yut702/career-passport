@@ -6,6 +6,13 @@ import {
   getMatchById,
   updateMatchStatus,
 } from "../lib/dynamo-matches.js";
+import {
+  getJobConditionByWallet,
+  getRecruitmentConditionByOrg,
+  getAllJobConditions,
+  getAllRecruitmentConditions,
+} from "../lib/dynamo-job-conditions.js";
+import { createMessage } from "../lib/dynamo-messages.js";
 
 const router = express.Router();
 
@@ -40,6 +47,25 @@ router.post("/", async (req, res) => {
       orgAddress,
       zkpProofHash,
     });
+
+    // マッチング作成成功後、自動的に学生から企業への初期メッセージを送信
+    try {
+      const initialMessage = `マッチングが成立しました。よろしくお願いします。`;
+      await createMessage({
+        senderAddress: studentAddress,
+        receiverAddress: orgAddress,
+        content: initialMessage,
+      });
+      console.log(
+        `✅ マッチング作成時の自動メッセージ送信成功: ${studentAddress} -> ${orgAddress}`
+      );
+    } catch (messageError) {
+      // メッセージ送信に失敗してもマッチング作成は成功とする
+      console.error(
+        "⚠️ マッチング作成時の自動メッセージ送信に失敗しました:",
+        messageError
+      );
+    }
 
     res.status(201).json({ ok: true, match });
   } catch (err) {
@@ -121,6 +147,134 @@ router.patch("/:matchId/status", async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error("Error updating match status:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * GET /api/matches/search/student
+ * 学生側から見たマッチング候補を検索
+ * カテゴリが一致すればマッチング候補として返す（緩い条件）
+ */
+router.get("/search/student", async (req, res) => {
+  try {
+    const { walletAddress } = req.query;
+    if (!walletAddress) {
+      return res.status(400).json({ error: "walletAddress is required" });
+    }
+
+    // 学生の求人条件を取得
+    const studentCondition = await getJobConditionByWallet(walletAddress);
+    if (!studentCondition || !studentCondition.positionCategory) {
+      return res.json({ ok: true, candidates: [] });
+    }
+
+    // 既存のマッチングを取得（重複を避けるため）
+    const existingMatches = await getMatchesByStudent(walletAddress);
+    const matchedOrgAddresses = new Set(
+      existingMatches
+        .filter((m) => m.status === "active")
+        .map((m) => m.orgAddress.toLowerCase())
+    );
+
+    // 全企業の採用条件を取得
+    const allRecruitmentConditions = await getAllRecruitmentConditions();
+
+    // マッチング候補をフィルタリング
+    // カテゴリが一致すればマッチング候補とする（緩い条件）
+    const candidates = allRecruitmentConditions
+      .filter((orgCondition) => {
+        // 既にマッチング済みの企業は除外
+        if (matchedOrgAddresses.has(orgCondition.orgAddress.toLowerCase())) {
+          return false;
+        }
+
+        // カテゴリが一致するかチェック
+        if (
+          orgCondition.positionCategory &&
+          studentCondition.positionCategory &&
+          orgCondition.positionCategory === studentCondition.positionCategory
+        ) {
+          return true;
+        }
+
+        return false;
+      })
+      .map((orgCondition) => ({
+        orgAddress: orgCondition.orgAddress,
+        condition: orgCondition,
+        matchScore: 100, // カテゴリが一致すれば100%とする
+      }));
+
+    res.json({ ok: true, candidates });
+  } catch (err) {
+    console.error("Error searching matches for student:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * GET /api/matches/search/org
+ * 企業側から見たマッチング候補を検索
+ * カテゴリが一致すればマッチング候補として返す（緩い条件）
+ */
+router.get("/search/org", async (req, res) => {
+  try {
+    const { walletAddress } = req.query;
+    if (!walletAddress) {
+      return res.status(400).json({ error: "walletAddress is required" });
+    }
+
+    // 企業の採用条件を取得
+    const orgCondition = await getRecruitmentConditionByOrg(walletAddress);
+    if (!orgCondition || !orgCondition.positionCategory) {
+      return res.json({ ok: true, candidates: [] });
+    }
+
+    // 既存のマッチングを取得（重複を避けるため）
+    const existingMatches = await getMatchesByOrg(walletAddress);
+    const matchedStudentAddresses = new Set(
+      existingMatches
+        .filter((m) => m.status === "active")
+        .map((m) => m.studentAddress.toLowerCase())
+    );
+
+    // 全学生の求人条件を取得
+    const allJobConditions = await getAllJobConditions();
+
+    // マッチング候補をフィルタリング
+    // カテゴリが一致すればマッチング候補とする（緩い条件）
+    const candidates = allJobConditions
+      .filter((studentCondition) => {
+        // 既にマッチング済みの学生は除外
+        if (
+          matchedStudentAddresses.has(
+            studentCondition.walletAddress.toLowerCase()
+          )
+        ) {
+          return false;
+        }
+
+        // カテゴリが一致するかチェック
+        if (
+          studentCondition.positionCategory &&
+          orgCondition.positionCategory &&
+          studentCondition.positionCategory === orgCondition.positionCategory
+        ) {
+          return true;
+        }
+
+        return false;
+      })
+      .map((studentCondition) => ({
+        studentAddress: studentCondition.walletAddress,
+        condition: studentCondition,
+        matchScore: 100, // カテゴリが一致すれば100%とする
+      }));
+
+    res.json({ ok: true, candidates });
+  } catch (err) {
+    console.error("Error searching matches for org:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });

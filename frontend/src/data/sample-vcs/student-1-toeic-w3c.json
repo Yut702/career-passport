@@ -1,0 +1,23 @@
+{
+  "@context": [
+    "https://www.w3.org/2018/credentials/v1",
+    "https://www.w3.org/2018/credentials/examples/v1"
+  ],
+  "type": ["VerifiableCredential", "TOEICCredential"],
+  "id": "vc_student_1_toeic",
+  "issuer": {
+    "id": "https://www.toeic.or.jp",
+    "name": "TOEIC運営委員会"
+  },
+  "issuanceDate": "2024-03-10T00:00:00.000Z",
+  "credentialSubject": {
+    "id": "did:example:student1",
+    "score": 850,
+    "testDate": "2024-03-10",
+    "listening": 425,
+    "reading": 425,
+    "testCenter": "東京"
+  },
+  "description": "TOEIC証明書VC（サンプル）",
+  "verified": true
+}

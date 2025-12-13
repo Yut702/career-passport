@@ -7,6 +7,8 @@
  *   - NonFungibleCareerEventApplications: イベント応募データ
  *   - NonFungibleCareerMessages: メッセージデータ
  *   - NonFungibleCareerMatches: マッチングデータ
+ *   - NonFungibleCareerJobConditions: 学生側の求人条件データ
+ *   - NonFungibleCareerRecruitmentConditions: 企業側の採用条件データ
  * 実行方法: npm run create-api-tables
  */
 import AWS from "aws-sdk";
@@ -102,6 +104,54 @@ const tables = [
       {
         IndexName: "OrgIndex",
         KeySchema: [{ AttributeName: "orgAddress", KeyType: "HASH" }],
+        Projection: { ProjectionType: "ALL" },
+      },
+    ],
+  },
+  {
+    TableName: "NonFungibleCareerJobConditions",
+    KeySchema: [{ AttributeName: "conditionId", KeyType: "HASH" }],
+    AttributeDefinitions: [
+      { AttributeName: "conditionId", AttributeType: "S" },
+      { AttributeName: "walletAddress", AttributeType: "S" },
+    ],
+    BillingMode: "PAY_PER_REQUEST",
+    GlobalSecondaryIndexes: [
+      {
+        IndexName: "WalletIndex",
+        KeySchema: [{ AttributeName: "walletAddress", KeyType: "HASH" }],
+        Projection: { ProjectionType: "ALL" },
+      },
+    ],
+  },
+  {
+    TableName: "NonFungibleCareerRecruitmentConditions",
+    KeySchema: [{ AttributeName: "conditionId", KeyType: "HASH" }],
+    AttributeDefinitions: [
+      { AttributeName: "conditionId", AttributeType: "S" },
+      { AttributeName: "orgAddress", AttributeType: "S" },
+    ],
+    BillingMode: "PAY_PER_REQUEST",
+    GlobalSecondaryIndexes: [
+      {
+        IndexName: "OrgIndex",
+        KeySchema: [{ AttributeName: "orgAddress", KeyType: "HASH" }],
+        Projection: { ProjectionType: "ALL" },
+      },
+    ],
+  },
+  {
+    TableName: "NonFungibleCareerZKPProofs",
+    KeySchema: [{ AttributeName: "proofId", KeyType: "HASH" }],
+    AttributeDefinitions: [
+      { AttributeName: "proofId", AttributeType: "S" },
+      { AttributeName: "walletAddress", AttributeType: "S" },
+    ],
+    BillingMode: "PAY_PER_REQUEST",
+    GlobalSecondaryIndexes: [
+      {
+        IndexName: "WalletIndex",
+        KeySchema: [{ AttributeName: "walletAddress", KeyType: "HASH" }],
         Projection: { ProjectionType: "ALL" },
       },
     ],

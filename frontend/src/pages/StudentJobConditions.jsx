@@ -1,44 +1,142 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useWallet } from "../hooks/useWallet";
+import { jobConditionAPI, zkpProofAPI } from "../lib/api";
 import { jobCategories, industries } from "../data/jobCategories";
+import { storage } from "../lib/storage";
 
-// 初期条件を読み込む関数
-const loadInitialConditions = () => {
-  try {
-    const saved = localStorage.getItem("studentJobConditions");
-    if (saved) {
-      return JSON.parse(saved);
-    }
-  } catch (error) {
-    console.error("Failed to parse saved conditions:", error);
-  }
-  return {
-    jobType: "",
-    positionCategory: "",
-    position: "",
-    location: "",
-    industry: "",
-    salary: "",
-    workStyle: "",
-    skills: [],
-  };
-};
-
-// 初期カテゴリを読み込む関数
-const loadInitialCategory = (positionCategory) => {
-  if (positionCategory && jobCategories[positionCategory]) {
-    return jobCategories[positionCategory];
-  }
-  return null;
-};
+// デフォルト条件
+const getDefaultConditions = () => ({
+  jobType: "",
+  positionCategory: "",
+  position: "",
+  location: "",
+  industry: "",
+  salary: "",
+  workStyle: "",
+  skills: [],
+  selectedZKPProofs: [], // 選択されたZKP証明のID配列
+});
 
 export default function StudentJobConditions() {
-  const initialData = loadInitialConditions();
-  const [formData, setFormData] = useState(initialData);
-  const [selectedCategory, setSelectedCategory] = useState(
-    loadInitialCategory(initialData.positionCategory)
-  );
+  const { account, isConnected } = useWallet();
+  const [formData, setFormData] = useState(getDefaultConditions());
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [availableZKPProofs, setAvailableZKPProofs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(null);
   const navigate = useNavigate();
+
+  // 検証済みZKP証明を読み込む（データベースから）
+  useEffect(() => {
+    const loadZKPProofs = async () => {
+      if (!isConnected || !account) {
+        // ウォレット未接続時はローカルストレージから読み込む
+        const proofs = storage.getZKPProofs();
+        const verifiedProofs = proofs.filter(
+          (p) => p.verifyResult?.verified === true
+        );
+        setAvailableZKPProofs(verifiedProofs);
+        return;
+      }
+
+      try {
+        // データベースから公開情報を取得
+        const response = await zkpProofAPI.getZKPProofs(account);
+        if (response.ok && response.proofs) {
+          setAvailableZKPProofs(response.proofs);
+        } else {
+          // フォールバック: ローカルストレージから読み込む
+          const proofs = storage.getZKPProofs();
+          const verifiedProofs = proofs.filter(
+            (p) => p.verifyResult?.verified === true
+          );
+          setAvailableZKPProofs(verifiedProofs);
+        }
+      } catch (err) {
+        console.error("Error loading ZKP proofs:", err);
+        // エラー時はローカルストレージから読み込む
+        const proofs = storage.getZKPProofs();
+        const verifiedProofs = proofs.filter(
+          (p) => p.verifyResult?.verified === true
+        );
+        setAvailableZKPProofs(verifiedProofs);
+      }
+    };
+
+    loadZKPProofs();
+  }, [isConnected, account]);
+
+  // データベースから求人条件を読み込む
+  useEffect(() => {
+    const loadConditions = async () => {
+      if (!isConnected || !account) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const response = await jobConditionAPI.getJobCondition(account);
+        if (response.ok && response.condition) {
+          setFormData({
+            ...response.condition,
+            selectedZKPProofs: response.condition.selectedZKPProofs || [],
+          });
+          if (response.condition.positionCategory) {
+            setSelectedCategory(
+              jobCategories[response.condition.positionCategory] || null
+            );
+          }
+        } else {
+          // データベースにデータがない場合、ローカルストレージから読み込む（フォールバック）
+          try {
+            const saved = localStorage.getItem("studentJobConditions");
+            if (saved) {
+              const parsed = JSON.parse(saved);
+              setFormData({
+                ...parsed,
+                selectedZKPProofs: parsed.selectedZKPProofs || [],
+              });
+              if (parsed.positionCategory) {
+                setSelectedCategory(
+                  jobCategories[parsed.positionCategory] || null
+                );
+              }
+            }
+          } catch (err) {
+            console.error("Failed to parse saved conditions:", err);
+          }
+        }
+      } catch (err) {
+        console.error("Error loading job conditions:", err);
+        // エラー時はローカルストレージから読み込む（フォールバック）
+        try {
+          const saved = localStorage.getItem("studentJobConditions");
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            setFormData({
+              ...parsed,
+              selectedZKPProofs: parsed.selectedZKPProofs || [],
+            });
+            if (parsed.positionCategory) {
+              setSelectedCategory(
+                jobCategories[parsed.positionCategory] || null
+              );
+            }
+          }
+        } catch (parseErr) {
+          console.error("Failed to parse saved conditions:", parseErr);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadConditions();
+  }, [isConnected, account]);
 
   const handleChange = (e) => {
     setFormData({
@@ -67,13 +165,82 @@ export default function StudentJobConditions() {
     });
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    // 条件を保存
-    localStorage.setItem("studentJobConditions", JSON.stringify(formData));
-    // 仕事探し画面へ遷移
-    navigate("/student/job-search");
+  const handleZKPProofToggle = (proofId) => {
+    setFormData({
+      ...formData,
+      selectedZKPProofs: formData.selectedZKPProofs.includes(proofId)
+        ? formData.selectedZKPProofs.filter((id) => id !== proofId)
+        : [...formData.selectedZKPProofs, proofId],
+    });
   };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!isConnected || !account) {
+      setError("ウォレットを接続してください");
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      // データベースに保存
+      const response = await jobConditionAPI.saveJobCondition(
+        account,
+        formData
+      );
+
+      if (response.ok) {
+        // 成功時はローカルストレージにも保存（フォールバック用）
+        localStorage.setItem("studentJobConditions", JSON.stringify(formData));
+        // 成功メッセージを表示
+        setSuccessMessage("保存されました");
+        // 少し遅延してから仕事探し画面へ遷移
+        setTimeout(() => {
+          navigate("/student/job-search");
+        }, 1500);
+      } else {
+        throw new Error(response.error || "保存に失敗しました");
+      }
+    } catch (err) {
+      console.error("Error saving job conditions:", err);
+      setError(err.message || "求人条件の保存に失敗しました");
+      // エラー時もローカルストレージに保存（フォールバック）
+      try {
+        localStorage.setItem("studentJobConditions", JSON.stringify(formData));
+      } catch (storageErr) {
+        console.error("Failed to save to localStorage:", storageErr);
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="text-gray-600">読み込み中...</div>
+      </div>
+    );
+  }
+
+  if (!isConnected) {
+    return (
+      <div className="text-center py-12">
+        <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-6 max-w-md mx-auto">
+          <p className="text-yellow-800 font-semibold mb-2">
+            ⚠️ ウォレットを接続してください
+          </p>
+          <p className="text-yellow-700 text-sm">
+            求人条件を保存するには、MetaMaskなどのウォレットを接続する必要があります。
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -84,6 +251,18 @@ export default function StudentJobConditions() {
           </h1>
           <p className="text-gray-600">希望する仕事の条件を設定してください</p>
         </div>
+
+        {error && (
+          <div className="mb-4 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
+            <p className="text-red-800">{error}</p>
+          </div>
+        )}
+
+        {successMessage && (
+          <div className="mb-4 p-4 bg-green-50 border-2 border-green-200 rounded-xl">
+            <p className="text-green-800 font-semibold">✅ {successMessage}</p>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
@@ -206,14 +385,24 @@ export default function StudentJobConditions() {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               希望給与
             </label>
-            <input
-              type="text"
+            <select
               name="salary"
               value={formData.salary}
               onChange={handleChange}
               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-              placeholder="例: 300万円〜"
-            />
+            >
+              <option value="">選択してください（任意）</option>
+              <option value="200万円未満">200万円未満</option>
+              <option value="200万円〜300万円">200万円〜300万円</option>
+              <option value="300万円〜400万円">300万円〜400万円</option>
+              <option value="400万円〜500万円">400万円〜500万円</option>
+              <option value="500万円〜600万円">500万円〜600万円</option>
+              <option value="600万円〜700万円">600万円〜700万円</option>
+              <option value="700万円〜800万円">700万円〜800万円</option>
+              <option value="800万円〜1000万円">800万円〜1000万円</option>
+              <option value="1000万円以上">1000万円以上</option>
+              <option value="応相談">応相談</option>
+            </select>
           </div>
 
           <div>
@@ -268,6 +457,114 @@ export default function StudentJobConditions() {
             </div>
           )}
 
+          {/* ZKP証明の選択 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              🔐 ZKP証明（検証済み）
+              <span className="text-xs text-gray-500 ml-2">
+                （任意）条件を満たすことを証明するために使用します
+              </span>
+            </label>
+            {availableZKPProofs.length === 0 ? (
+              <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-4">
+                <p className="text-yellow-800 text-sm mb-2">
+                  検証済みのZKP証明がありません。
+                </p>
+                <button
+                  type="button"
+                  onClick={() => navigate("/student/settings?tab=zkp")}
+                  className="text-yellow-700 underline hover:text-yellow-900 text-sm"
+                >
+                  VC管理ページで証明を生成する
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {availableZKPProofs.map((proof) => {
+                  const proofTypes =
+                    proof.usedVCs?.map((vc) => {
+                      const names = {
+                        myNumber: "マイナンバー",
+                        toeic: "TOEIC",
+                        degree: "学位",
+                      };
+                      return names[vc.type] || vc.type;
+                    }) || [];
+                  const proofId = proof.proofId || proof.id;
+                  const isSelected =
+                    formData.selectedZKPProofs.includes(proofId);
+
+                  return (
+                    <label
+                      key={proofId}
+                      className={`flex items-start p-4 border-2 rounded-xl cursor-pointer transition-all ${
+                        isSelected
+                          ? "border-blue-600 bg-blue-50"
+                          : "border-gray-200 hover:border-blue-300 hover:bg-gray-50"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => handleZKPProofToggle(proofId)}
+                        className="mt-1 mr-3 w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900 mb-1">
+                          {proof.proofHash
+                            ? `証明 ${proof.proofHash.slice(0, 16)}...`
+                            : `証明 ${proofId}`}
+                        </div>
+                        <div className="text-xs text-gray-600">
+                          {proofTypes.length > 0
+                            ? `使用VC: ${proofTypes.join(", ")}`
+                            : "VC情報なし"}
+                        </div>
+                        {(proof.verified ||
+                          proof.verifyResult?.verified ||
+                          proof.verifiedAt) && (
+                          <div className="text-xs text-green-600 mt-1 font-medium">
+                            ✅ 検証済み
+                            {proof.verifiedAt && (
+                              <span className="text-gray-500 ml-1">
+                                (
+                                {new Date(proof.verifiedAt).toLocaleDateString(
+                                  "ja-JP"
+                                )}
+                                )
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {/* 公開情報を表示 */}
+                        {proof.publicInputs &&
+                          Object.keys(proof.publicInputs).length > 0 && (
+                            <div className="mt-2 p-2 bg-gray-50 rounded-lg">
+                              <div className="text-xs font-medium text-gray-600 mb-1">
+                                公開情報:
+                              </div>
+                              <div className="text-xs text-gray-700 space-y-1">
+                                {Object.entries(proof.publicInputs).map(
+                                  ([key, value]) => (
+                                    <div key={key}>
+                                      <span className="font-medium">
+                                        {key}:
+                                      </span>{" "}
+                                      {String(value)}
+                                    </div>
+                                  )
+                                )}
+                              </div>
+                            </div>
+                          )}
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           <div className="flex justify-end space-x-4 pt-4">
             <button
               type="button"
@@ -278,9 +575,10 @@ export default function StudentJobConditions() {
             </button>
             <button
               type="submit"
-              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
+              disabled={saving}
+              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              条件を保存して探す
+              {saving ? "保存中..." : "条件を保存して探す"}
             </button>
           </div>
         </form>

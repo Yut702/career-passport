@@ -8,6 +8,7 @@ const STORAGE_KEYS = {
   CONTRACT_VERSION: "nonfungiblecareer_contract_version", // コントラクトアドレスのバージョン管理
   APPROVED_COMPANIES: "nonfungiblecareer_approved_companies", // 承認された企業情報（ユーザー側）
   APPLICANTS: "nonfungiblecareer_applicants", // 応募者情報（企業側）
+  ZKP_PROOFS: "nonfungiblecareer_zkp_proofs", // ZKP証明データ
 };
 
 // 現在のコントラクトアドレス（環境変数から取得）
@@ -251,8 +252,10 @@ export const storage = {
       );
       const newCompany = {
         walletAddress: company.walletAddress.toLowerCase(),
-        companyName: company.companyName || company.organization || "不明な企業",
-        organization: company.organization || company.companyName || "不明な企業",
+        companyName:
+          company.companyName || company.organization || "不明な企業",
+        organization:
+          company.organization || company.companyName || "不明な企業",
         eventId: company.eventId || "",
         eventTitle: company.eventTitle || "",
         approvedAt: company.approvedAt || new Date().toISOString(),
@@ -296,7 +299,8 @@ export const storage = {
       // 既に存在する場合は更新、存在しない場合は追加
       const existingIndex = applicants.findIndex(
         (a) =>
-          a.walletAddress.toLowerCase() === applicant.walletAddress.toLowerCase() &&
+          a.walletAddress.toLowerCase() ===
+            applicant.walletAddress.toLowerCase() &&
           a.eventId === applicant.eventId
       );
       const newApplicant = {
@@ -317,6 +321,55 @@ export const storage = {
     } catch (err) {
       console.error("Error adding applicant:", err);
       throw new Error("応募者情報の追加に失敗しました");
+    }
+  },
+
+  // ZKP証明
+  getZKPProofs: () => {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.ZKP_PROOFS);
+      return data ? JSON.parse(data) : [];
+    } catch (err) {
+      console.error("Error getting ZKP proofs:", err);
+      return [];
+    }
+  },
+
+  saveZKPProofs: (proofs) => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.ZKP_PROOFS, JSON.stringify(proofs));
+    } catch (err) {
+      console.error("Error saving ZKP proofs:", err);
+      throw new Error("ZKP証明の保存に失敗しました");
+    }
+  },
+
+  addZKPProof: (proof) => {
+    try {
+      const proofs = storage.getZKPProofs();
+      const newProof = {
+        id:
+          proof.id ||
+          `zkp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        ...proof,
+        createdAt: proof.createdAt || new Date().toISOString(),
+      };
+      proofs.push(newProof);
+      storage.saveZKPProofs(proofs);
+      return newProof;
+    } catch (err) {
+      console.error("Error adding ZKP proof:", err);
+      throw new Error("ZKP証明の追加に失敗しました");
+    }
+  },
+
+  getZKPProofById: (id) => {
+    try {
+      const proofs = storage.getZKPProofs();
+      return proofs.find((p) => p.id === id);
+    } catch (err) {
+      console.error("Error getting ZKP proof:", err);
+      return null;
     }
   },
 };

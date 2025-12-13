@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import { eventAPI } from "../lib/api";
 import { storage } from "../lib/storage";
+import { verifyProofs } from "../lib/zkp/verifier.js";
 
 /**
  * イベント応募一覧ページ（企業向け）
@@ -15,6 +16,8 @@ export default function OrgEventApplications() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [updatingStatus, setUpdatingStatus] = useState(null); // 更新中の応募ID
+  const [verifyingProofs, setVerifyingProofs] = useState(new Set()); // 検証中の証明ID
+  const [proofVerificationResults, setProofVerificationResults] = useState({}); // 証明検証結果
 
   /**
    * イベント情報と応募一覧を読み込む
@@ -128,6 +131,87 @@ export default function OrgEventApplications() {
       rejected: "bg-red-100 text-red-700",
     };
     return styles[status] || "bg-gray-100 text-gray-700";
+  };
+
+  /**
+   * 応募テキストからZKP証明データを抽出
+   */
+  const extractZKPProof = (applicationText) => {
+    try {
+      // 【ZKP証明データ】セクションを探す
+      const zkpSection = applicationText.match(/【ZKP証明データ】\s*\n(.*)/s);
+      if (zkpSection) {
+        const proofData = JSON.parse(zkpSection[1]);
+        if (proofData.type === "ZKP_PROOF") {
+          return proofData;
+        }
+      }
+    } catch {
+      // JSON解析エラーは無視
+    }
+    return null;
+  };
+
+  /**
+   * ZKP証明を検証
+   */
+  const handleVerifyZKPProof = async (applicationId, proofData) => {
+    if (verifyingProofs.has(applicationId)) return;
+
+    setVerifyingProofs((prev) => new Set(prev).add(applicationId));
+
+    try {
+      const proofResultForVerification = {
+        proofs: proofData.proofs
+          .filter(
+            (p) => !p.proof?.skipped && p.proof && p.publicSignals?.length > 0
+          )
+          .map((p) => ({
+            type: p.type,
+            proof: {
+              proof: p.proof,
+              publicSignals: p.publicSignals,
+            },
+          })),
+      };
+
+      if (proofResultForVerification.proofs.length > 0) {
+        const result = await verifyProofs(proofResultForVerification);
+        setProofVerificationResults((prev) => ({
+          ...prev,
+          [applicationId]: result,
+        }));
+      } else {
+        // スキップされた証明のみの場合
+        setProofVerificationResults((prev) => ({
+          ...prev,
+          [applicationId]: {
+            allVerified: true,
+            results: proofData.proofs.map((p) => ({
+              type: p.type,
+              verified: true,
+              skipped: true,
+            })),
+          },
+        }));
+      }
+    } catch (error) {
+      console.error("Error verifying ZKP proof:", error);
+      setProofVerificationResults((prev) => ({
+        ...prev,
+        [applicationId]: {
+          allVerified: false,
+          results: [],
+          error: error.message,
+        },
+      }));
+    } finally {
+      setVerifyingProofs((prev) => {
+        const next = new Set(prev);
+        next.delete(applicationId);
+        return next;
+      });
+    }
   };
 
   if (loading) {
@@ -262,8 +346,111 @@ export default function OrgEventApplications() {
                     応募動機・メッセージ
                   </h4>
                   <p className="text-gray-700 whitespace-pre-wrap">
-                    {application.applicationText}
+                    {application.applicationText
+                      .replace(/【ZKP証明データ】\s*\n.*/s, "")
+                      .trim()}
                   </p>
+
+                  {/* ZKP証明データの検出と検証 */}
+                  {(() => {
+                    const zkpProof = extractZKPProof(
+                      application.applicationText
+                    );
+                    if (!zkpProof) return null;
+
+                    const verificationResult =
+                      proofVerificationResults[application.applicationId];
+                    const isVerifying = verifyingProofs.has(
+                      application.applicationId
+                    );
+
+                    return (
+                      <div className="mt-4 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-lg">🔐</span>
+                            <span className="font-semibold text-indigo-900">
+                              ZKP証明データ
+                            </span>
+                          </div>
+                          {!verificationResult && !isVerifying && (
+                            <button
+                              onClick={() =>
+                                handleVerifyZKPProof(
+                                  application.applicationId,
+                                  zkpProof
+                                )
+                              }
+                              className="px-3 py-1 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700"
+                            >
+                              検証する
+                            </button>
+                          )}
+                        </div>
+
+                        {isVerifying && (
+                          <div className="text-sm text-indigo-700">
+                            🔄 検証中...
+                          </div>
+                        )}
+
+                        {verificationResult && (
+                          <div className="mt-2 space-y-2">
+                            <div
+                              className={`p-2 rounded-lg ${
+                                verificationResult.allVerified
+                                  ? "bg-green-100 border border-green-300"
+                                  : "bg-red-100 border border-red-300"
+                              }`}
+                            >
+                              <div className="flex items-center space-x-2">
+                                <span className="text-lg">
+                                  {verificationResult.allVerified ? "✅" : "❌"}
+                                </span>
+                                <span
+                                  className={`font-semibold ${
+                                    verificationResult.allVerified
+                                      ? "text-green-800"
+                                      : "text-red-800"
+                                  }`}
+                                >
+                                  {verificationResult.allVerified
+                                    ? "検証成功"
+                                    : "検証失敗"}
+                                </span>
+                              </div>
+                              {verificationResult.results &&
+                                verificationResult.results.length > 0 && (
+                                  <div className="mt-2 text-xs space-y-1">
+                                    {verificationResult.results.map(
+                                      (result, idx) => (
+                                        <div
+                                          key={idx}
+                                          className="flex items-center space-x-2"
+                                        >
+                                          <span>
+                                            {result.verified ? "✅" : "❌"}
+                                          </span>
+                                          <span>
+                                            {result.type === "age"
+                                              ? "年齢証明"
+                                              : result.type === "toeic"
+                                              ? "TOEIC証明"
+                                              : result.type === "degree"
+                                              ? "学位証明"
+                                              : result.type}
+                                          </span>
+                                        </div>
+                                      )
+                                    )}
+                                  </div>
+                                )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 

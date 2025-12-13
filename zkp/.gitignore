@@ -1,0 +1,14 @@
+# Build outputs
+build/
+*.wasm
+*.r1cs
+*.zkey
+*.vkey.json
+*.ptau
+
+# Node modules
+node_modules/
+
+# Logs
+*.log
+

@@ -1,0 +1,23 @@
+{
+  "@context": [
+    "https://www.w3.org/2018/credentials/v1",
+    "https://www.w3.org/2018/credentials/examples/v1"
+  ],
+  "type": ["VerifiableCredential", "DegreeCredential"],
+  "id": "vc_student_1_degree",
+  "issuer": {
+    "id": "https://www.u-tokyo.ac.jp",
+    "name": "東京大学"
+  },
+  "issuanceDate": "2024-03-20T00:00:00.000Z",
+  "credentialSubject": {
+    "id": "did:example:student1",
+    "university": "東京大学",
+    "major": "情報工学科",
+    "degree": "学士",
+    "graduationYear": 2024,
+    "gpa": 3.8
+  },
+  "description": "東京大学情報工学科の学位証明書VC（サンプル）",
+  "verified": true
+}
