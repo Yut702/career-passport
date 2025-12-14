@@ -22,6 +22,8 @@ contract CareerStampSFT is ERC1155, Ownable {
         string organization;  // 発行組織
         string category;      // カテゴリ
         uint256 createdAt;    // 作成日時
+        address issuer;       // 発行者アドレス
+        uint8 imageType;      // 画像タイプ（0-255の範囲で一意の画像を指定）
     }
 
     // tokenId => スタンプメタデータ
@@ -57,6 +59,8 @@ contract CareerStampSFT is ERC1155, Ownable {
      * @param organization 発行組織
      * @param category カテゴリ
      * @param amount 発行数量（通常は1）
+     * @param issuer 発行者アドレス
+     * @param imageType 画像タイプ（0-255の範囲で一意の画像を指定）
      * @return tokenId 発行されたスタンプのtokenId
      */
     function mintStamp(
@@ -64,7 +68,9 @@ contract CareerStampSFT is ERC1155, Ownable {
         string memory name,
         string memory organization,
         string memory category,
-        uint256 amount
+        uint256 amount,
+        address issuer,
+        uint8 imageType
     ) public onlyOwner returns (uint256) {
         // 既存のtokenIdを確認、なければ新規作成
         // 組織・カテゴリ・名前の組み合わせで識別
@@ -79,8 +85,20 @@ contract CareerStampSFT is ERC1155, Ownable {
                 name: name,
                 organization: organization,
                 category: category,
-                createdAt: block.timestamp
+                createdAt: block.timestamp,
+                issuer: issuer,
+                imageType: imageType
             });
+        } else {
+            // 既存のスタンプタイプの場合、発行者アドレスと画像タイプを更新（最初の値を保持）
+            // 注意: 既存のメタデータのissuerがaddress(0)の場合のみ更新
+            if (stampMetadata[tokenId].issuer == address(0)) {
+                stampMetadata[tokenId].issuer = issuer;
+            }
+            // 画像タイプが0（未設定）の場合のみ更新
+            if (stampMetadata[tokenId].imageType == 0 && imageType != 0) {
+                stampMetadata[tokenId].imageType = imageType;
+            }
         }
 
         // SFTをmint
@@ -203,6 +221,23 @@ contract CareerStampSFT is ERC1155, Ownable {
             tokenId.toString(),
             ".json"
         ));
+    }
+
+    /**
+     * @dev スタンプをバーン（所有者または許可されたアドレスのみ実行可能）
+     * @param from バーンするユーザーのアドレス
+     * @param ids バーンするスタンプのtokenId配列
+     * @param amounts 各tokenIdのバーン数量
+     */
+    function burn(address from, uint256[] memory ids, uint256[] memory amounts) public {
+        require(
+            msg.sender == owner() || msg.sender == from,
+            "Not authorized to burn"
+        );
+        require(ids.length == amounts.length, "Arrays length mismatch");
+        
+        // バーンを実行（_update内で組織別スタンプ数も更新される）
+        _update(from, address(0), ids, amounts);
     }
 
     /**

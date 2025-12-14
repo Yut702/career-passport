@@ -9,6 +9,7 @@
  *   - NonFungibleCareerMatches: マッチングデータ
  *   - NonFungibleCareerJobConditions: 学生側の求人条件データ
  *   - NonFungibleCareerRecruitmentConditions: 企業側の採用条件データ
+ *   - NonFungibleCareerZKPProofs: ZKP証明の公開情報データ
  * 実行方法: npm run create-api-tables
  */
 import AWS from "aws-sdk";
@@ -152,6 +153,28 @@ const tables = [
       {
         IndexName: "WalletIndex",
         KeySchema: [{ AttributeName: "walletAddress", KeyType: "HASH" }],
+        Projection: { ProjectionType: "ALL" },
+      },
+    ],
+  },
+  {
+    TableName: "NonFungibleCareerNFTApplications",
+    KeySchema: [{ AttributeName: "applicationId", KeyType: "HASH" }],
+    AttributeDefinitions: [
+      { AttributeName: "applicationId", AttributeType: "S" },
+      { AttributeName: "userWalletAddress", AttributeType: "S" },
+      { AttributeName: "orgWalletAddress", AttributeType: "S" },
+    ],
+    BillingMode: "PAY_PER_REQUEST",
+    GlobalSecondaryIndexes: [
+      {
+        IndexName: "UserIndex",
+        KeySchema: [{ AttributeName: "userWalletAddress", KeyType: "HASH" }],
+        Projection: { ProjectionType: "ALL" },
+      },
+      {
+        IndexName: "OrgIndex",
+        KeySchema: [{ AttributeName: "orgWalletAddress", KeyType: "HASH" }],
         Projection: { ProjectionType: "ALL" },
       },
     ],

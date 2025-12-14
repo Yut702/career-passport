@@ -41,14 +41,25 @@ export default function OrgLayout({ children }) {
                 ダッシュボード
               </Link>
               <Link
-                to="/org/stamp-issuance"
+                to="/org/nfts"
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  location.pathname === "/org/stamp-issuance"
+                  location.pathname.startsWith("/org/nft/") ||
+                  location.pathname === "/org/nfts"
                     ? "bg-purple-100 text-purple-700"
                     : "text-gray-700 hover:bg-gray-100"
                 }`}
               >
-                スタンプ発行
+                スタンプ/NFT
+              </Link>
+              <Link
+                to="/org/nft-applications"
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  location.pathname === "/org/nft-applications"
+                    ? "bg-purple-100 text-purple-700"
+                    : "text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                NFT申請
               </Link>
               <Link
                 to="/org/events"
@@ -59,16 +70,6 @@ export default function OrgLayout({ children }) {
                 }`}
               >
                 イベント
-              </Link>
-              <Link
-                to="/org/nfts"
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  location.pathname.startsWith("/org/nft")
-                    ? "bg-purple-100 text-purple-700"
-                    : "text-gray-700 hover:bg-gray-100"
-                }`}
-              >
-                NFT一覧
               </Link>
               <Link
                 to="/org/recruitment-conditions"

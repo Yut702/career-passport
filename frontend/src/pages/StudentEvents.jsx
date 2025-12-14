@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { useWallet } from "../hooks/useWallet";
+import { useWalletConnect } from "../hooks/useWalletConnect";
 import { eventAPI } from "../lib/api";
 import { formatOrganization } from "../lib/utils";
 
 export default function StudentEvents() {
-  const { account, isConnected } = useWallet();
+  const { account, isConnected } = useWalletConnect();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [applicationStatuses, setApplicationStatuses] = useState({}); // eventId => status

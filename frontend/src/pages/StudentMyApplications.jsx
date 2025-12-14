@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { useWallet } from "../hooks/useWallet";
+import { useWalletConnect } from "../hooks/useWalletConnect";
 import { eventAPI } from "../lib/api";
 import { storage } from "../lib/storage";
 
@@ -10,7 +10,7 @@ import { storage } from "../lib/storage";
  * ユーザーが送ったすべての応募を表示し、ステータス（承認、拒否、審査中）を確認できるページです。
  */
 export default function StudentMyApplications() {
-  const { account, isConnected } = useWallet();
+  const { account, isConnected } = useWalletConnect();
   const [applications, setApplications] = useState([]);
   const [events, setEvents] = useState({}); // eventId -> event のマップ
   const [loading, setLoading] = useState(true);
@@ -132,6 +132,25 @@ export default function StudentMyApplications() {
   const getEventName = (eventId) => {
     const event = events[eventId];
     return event?.title || eventId;
+  };
+
+  /**
+   * 応募テキストからZKP証明データを抽出
+   */
+  const extractZKPProof = (applicationText) => {
+    try {
+      // 【ZKP証明データ】セクションを探す
+      const zkpSection = applicationText.match(/【ZKP証明データ】\s*\n(.*)/s);
+      if (zkpSection) {
+        const proofData = JSON.parse(zkpSection[1]);
+        if (proofData.type === "ZKP_PROOF") {
+          return proofData;
+        }
+      }
+    } catch {
+      // JSON解析エラーは無視
+    }
+    return null;
   };
 
   if (!isConnected) {
@@ -267,8 +286,95 @@ export default function StudentMyApplications() {
                     応募動機・メッセージ
                   </h4>
                   <p className="text-gray-700 whitespace-pre-wrap text-sm">
-                    {application.applicationText}
+                    {application.applicationText
+                      .replace(/【ZKP証明データ】\s*\n.*/s, "")
+                      .trim()}
                   </p>
+
+                  {/* ZKP証明データの検出と表示（公開情報のみ） */}
+                  {(() => {
+                    const zkpProof = extractZKPProof(
+                      application.applicationText
+                    );
+                    if (!zkpProof) return null;
+
+                    return (
+                      <div className="mt-4 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                        <div className="flex items-center space-x-2 mb-3">
+                          <span className="text-lg">🔐</span>
+                          <span className="font-semibold text-indigo-900">
+                            ZKP証明データ
+                          </span>
+                        </div>
+
+                        {/* 選択された証明タイプを表示 */}
+                        {zkpProof.proofs && zkpProof.proofs.length > 0 && (
+                          <div className="mb-3">
+                            <div className="text-sm font-semibold text-indigo-900 mb-2">
+                              選択された証明:
+                            </div>
+                            <div className="space-y-2">
+                              {zkpProof.proofs.map((proof, proofIdx) => {
+                                const proofTypeLabel =
+                                  proof.type === "age"
+                                    ? "年齢証明"
+                                    : proof.type === "toeic"
+                                    ? "TOEIC証明"
+                                    : proof.type === "degree"
+                                    ? "学位証明"
+                                    : proof.type;
+
+                                return (
+                                  <div
+                                    key={proofIdx}
+                                    className="bg-white rounded-lg border border-indigo-200 p-2 text-sm"
+                                  >
+                                    <div className="flex items-center space-x-2">
+                                      <span className="text-lg">
+                                        {proof.proof?.skipped ? "⏭️" : "✅"}
+                                      </span>
+                                      <span className="font-semibold text-indigo-900">
+                                        {proofTypeLabel}
+                                      </span>
+                                      {proof.proof?.skipped && (
+                                        <span className="text-xs text-gray-500">
+                                          (スキップ)
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 公開情報（開示）のみ表示 */}
+                        {zkpProof.publicInputs &&
+                          Object.keys(zkpProof.publicInputs).length > 0 && (
+                            <div>
+                              <div className="text-sm font-semibold text-indigo-900 mb-2">
+                                公開情報（開示）:
+                              </div>
+                              <div className="p-3 bg-white rounded-lg border border-indigo-200">
+                                <div className="space-y-1 text-sm">
+                                  {Object.entries(zkpProof.publicInputs).map(
+                                    ([key, value]) => (
+                                      <div key={key} className="text-gray-900">
+                                        <span className="font-semibold">
+                                          {key}:
+                                        </span>{" "}
+                                        {String(value)}
+                                      </div>
+                                    )
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 

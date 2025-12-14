@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useWallet } from "../hooks/useWallet";
+import { useWalletConnect } from "../hooks/useWalletConnect";
 import { jobConditionAPI, zkpProofAPI } from "../lib/api";
 import { jobCategories, industries } from "../data/jobCategories";
 import { storage } from "../lib/storage";
@@ -19,7 +19,7 @@ const getDefaultConditions = () => ({
 });
 
 export default function StudentJobConditions() {
-  const { account, isConnected } = useWallet();
+  const { account, isConnected } = useWalletConnect();
   const [formData, setFormData] = useState(getDefaultConditions());
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [availableZKPProofs, setAvailableZKPProofs] = useState([]);
@@ -283,6 +283,38 @@ export default function StudentJobConditions() {
                 <div>
                   <div className="font-medium">インターンシップ</div>
                   <div className="text-sm text-gray-500">短期間の実務経験</div>
+                </div>
+              </label>
+              <label className="flex items-center p-4 border-2 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">
+                <input
+                  type="radio"
+                  name="jobType"
+                  value="event"
+                  checked={formData.jobType === "event"}
+                  onChange={handleChange}
+                  className="mr-3"
+                  required
+                />
+                <div>
+                  <div className="font-medium">イベント</div>
+                  <div className="text-sm text-gray-500">イベント参加</div>
+                </div>
+              </label>
+              <label className="flex items-center p-4 border-2 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">
+                <input
+                  type="radio"
+                  name="jobType"
+                  value="lecture"
+                  checked={formData.jobType === "lecture"}
+                  onChange={handleChange}
+                  className="mr-3"
+                  required
+                />
+                <div>
+                  <div className="font-medium">講座</div>
+                  <div className="text-sm text-gray-500">
+                    学習・研修プログラム
+                  </div>
                 </div>
               </label>
               <label className="flex items-center p-4 border-2 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">

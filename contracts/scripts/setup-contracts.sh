@@ -90,7 +90,7 @@ if [ "$CURRENT_NFT_CONTRACT" == "$NFT_ADDRESS" ]; then
 else
     echo "2. StampManagerにNFTコントラクトのアドレスを設定中..."
     cast send "$STAMP_ADDRESS" \
-      "setNFTContract(address)" \
+      "setNftContract(address)" \
       "$NFT_ADDRESS" \
       --rpc-url "$RPC_URL" \
       --private-key "$PRIVATE_KEY" \

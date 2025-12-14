@@ -358,6 +358,12 @@ export default function OrgEventApplications() {
                     );
                     if (!zkpProof) return null;
 
+                    // デバッグ: ZKP証明データの構造を確認
+                    console.log(
+                      `[OrgEventApplications] ZKP証明データ:`,
+                      zkpProof
+                    );
+
                     const verificationResult =
                       proofVerificationResults[application.applicationId];
                     const isVerifying = verifyingProofs.has(
@@ -394,8 +400,74 @@ export default function OrgEventApplications() {
                           </div>
                         )}
 
+                        {/* 選択された証明タイプを表示 */}
+                        {zkpProof.proofs && zkpProof.proofs.length > 0 && (
+                          <div className="mt-3">
+                            <div className="text-sm font-semibold text-indigo-900 mb-2">
+                              選択された証明:
+                            </div>
+                            <div className="space-y-2">
+                              {zkpProof.proofs.map((proof, proofIdx) => {
+                                const proofTypeLabel =
+                                  proof.type === "age"
+                                    ? "年齢証明"
+                                    : proof.type === "toeic"
+                                    ? "TOEIC証明"
+                                    : proof.type === "degree"
+                                    ? "学位証明"
+                                    : proof.type;
+
+                                return (
+                                  <div
+                                    key={proofIdx}
+                                    className="bg-white rounded-lg border border-indigo-200 p-2 text-sm"
+                                  >
+                                    <div className="flex items-center space-x-2">
+                                      <span className="text-lg">
+                                        {proof.proof?.skipped ? "⏭️" : "✅"}
+                                      </span>
+                                      <span className="font-semibold text-indigo-900">
+                                        {proofTypeLabel}
+                                      </span>
+                                      {proof.proof?.skipped && (
+                                        <span className="text-xs text-gray-500">
+                                          (スキップ)
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 公開情報（開示）のみ表示 */}
+                        {zkpProof.publicInputs &&
+                          Object.keys(zkpProof.publicInputs).length > 0 && (
+                            <div className="mt-3">
+                              <div className="text-sm font-semibold text-indigo-900 mb-2">
+                                公開情報（開示）:
+                              </div>
+                              <div className="p-3 bg-white rounded-lg border border-indigo-200">
+                                <div className="space-y-1 text-sm">
+                                  {Object.entries(zkpProof.publicInputs).map(
+                                    ([key, value]) => (
+                                      <div key={key} className="text-gray-900">
+                                        <span className="font-semibold">
+                                          {key}:
+                                        </span>{" "}
+                                        {String(value)}
+                                      </div>
+                                    )
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
                         {verificationResult && (
-                          <div className="mt-2 space-y-2">
+                          <div className="mt-3 space-y-2">
                             <div
                               className={`p-2 rounded-lg ${
                                 verificationResult.allVerified

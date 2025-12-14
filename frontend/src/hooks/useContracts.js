@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { ethers } from "ethers";
-import { useWallet } from "./useWallet";
+import { useWalletConnect } from "./useWalletConnect";
 import NonFungibleCareerNFTABI from "../abis/NonFungibleCareerNFT.json";
 import StampManagerABI from "../abis/StampManager.json";
 
@@ -42,14 +42,14 @@ const getABI = (abi) => {
  *   // コントラクトを使用
  *   // スタンプはStampManager経由でアクセス
  *   const handleMint = async () => {
- *     await stampManagerContract.mintNFT(...);
+ *     await stampManagerContract.mintNft(...);
  *   };
  * }
  * ```
  */
 export function useContracts() {
-  // useWallet フックから接続状態を取得
-  const { signer, isConnected } = useWallet();
+  // useWalletConnect フックから接続状態を取得
+  const { signer, isConnected } = useWalletConnect();
 
   // NonFungibleCareerNFT コントラクトのインスタンス（NFT証明書）
   const [nftContract, setNftContract] = useState(null);

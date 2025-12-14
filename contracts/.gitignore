@@ -12,3 +12,7 @@ docs/
 
 # Dotenv file
 .env
+
+# Anvil state files
+anvil-state.json
+*.anvil-state.json

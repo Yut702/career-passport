@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { useWallet } from "../hooks/useWallet";
+import { useWalletConnect } from "../hooks/useWalletConnect";
 import { matchAPI, jobConditionAPI } from "../lib/api";
 import { formatAddress } from "../lib/utils";
 import { jobCategories, industries } from "../data/jobCategories";
 
 export default function OrgCandidateSearch() {
-  const { account, isConnected } = useWallet();
+  const { account, isConnected } = useWalletConnect();
   const [myCondition, setMyCondition] = useState(null);
   const [candidates, setCandidates] = useState([]);
   const [matchedStudents, setMatchedStudents] = useState([]);
@@ -131,6 +131,10 @@ export default function OrgCandidateSearch() {
               <span className="text-gray-900">
                 {myCondition.jobType === "internship"
                   ? "インターンシップ"
+                  : myCondition.jobType === "event"
+                  ? "イベント"
+                  : myCondition.jobType === "lecture"
+                  ? "講座"
                   : myCondition.jobType === "fulltime"
                   ? "正社員"
                   : "未設定"}

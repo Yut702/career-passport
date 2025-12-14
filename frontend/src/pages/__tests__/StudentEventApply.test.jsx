@@ -4,11 +4,11 @@ import userEvent from "@testing-library/user-event";
 import { BrowserRouter } from "react-router-dom";
 import StudentEventApply from "../StudentEventApply";
 import { eventAPI } from "../../lib/api";
-import { useWallet } from "../../hooks/useWallet";
+import { useWalletConnect } from "../../hooks/useWalletConnect";
 
 // モックの設定
 vi.mock("../../lib/api");
-vi.mock("../../hooks/useWallet");
+vi.mock("../../hooks/useWalletConnect");
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual("react-router-dom");
   return {
@@ -24,8 +24,8 @@ describe("StudentEventApply", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // useWallet のモック
-    useWallet.mockReturnValue({
+    // useWalletConnect のモック
+    useWalletConnect.mockReturnValue({
       account: mockAccount,
       isConnected: true,
     });
@@ -150,7 +150,7 @@ describe("StudentEventApply", () => {
 
   it("ウォレットが接続されていない場合、警告が表示される", () => {
     // ウォレット未接続のモック
-    useWallet.mockReturnValue({
+    useWalletConnect.mockReturnValue({
       account: null,
       isConnected: false,
     });

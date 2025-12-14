@@ -20,7 +20,7 @@ struct MintRule {
  * スタンプはSFT（ERC1155）として実装され、証明書はNFT（ERC721）として実装されます。
  */
 contract StampManager {
-    CareerStampSFT public stampSFT;  // SFTコントラクトへの参照
+    CareerStampSFT public stampSft;  // SFTコントラクトへの参照
     NonFungibleCareerNFT public nftContract;  // NFTコントラクトへの参照
     address public owner;
 
@@ -35,18 +35,18 @@ contract StampManager {
     // プラットフォーム参加企業NFTコントラクト（将来の実装用、現在はモック）
     // address public platformNFTContract;  // 将来実装時に使用
 
-    event StampIssued(address indexed user, string name, string organization, uint256 timestamp, uint256 tokenId);
-    // indexedによりイベントログで検索可能
+    event StampIssued(address indexed user, address indexed issuer, string name, string organization, uint256 timestamp, uint256 tokenId);
+    // indexedによりイベントログで検索可能（userとissuerで検索可能）
     
     event MintRuleAdded(uint256 indexed ruleId, string rarity, uint256 requiredOrganizations, uint256 stampsPerOrg);
     event MintRuleUpdated(uint256 indexed ruleId, bool isActive);
-    event NFTMinted(address indexed to, uint256 indexed tokenId, string name, string organization);
+    event NFTMinted(address indexed to, address indexed issuer, uint256 indexed tokenId, string name, string organization);
     event AuthorizedIssuerAdded(address indexed issuer, string organization);
     event AuthorizedIssuerRemoved(address indexed issuer);
 
-    constructor(address _stampSFTAddress) {
+    constructor(address _stampSftAddress) {
         owner = msg.sender;  // デプロイしたアドレスを所有者に設定
-        stampSFT = CareerStampSFT(_stampSFTAddress);  // SFTコントラクトのアドレスを設定
+        stampSft = CareerStampSFT(_stampSftAddress);  // SFTコントラクトのアドレスを設定
         
         // デフォルトルールを追加（既存の動作を維持）
         // ルールID 1: 1企業から3スタンプ = Common
@@ -56,14 +56,14 @@ contract StampManager {
     /**
      * @dev SFTコントラクトのアドレスを更新（所有者のみ）
      */
-    function setStampSFT(address _stampSFTAddress) public onlyOwner {
-        stampSFT = CareerStampSFT(_stampSFTAddress);
+    function setStampSft(address _stampSftAddress) public onlyOwner {
+        stampSft = CareerStampSFT(_stampSftAddress);
     }
 
     /**
      * @dev NFTコントラクトのアドレスを設定（所有者のみ）
      */
-    function setNFTContract(address _nftContractAddress) public onlyOwner {
+    function setNftContract(address _nftContractAddress) public onlyOwner {
         nftContract = NonFungibleCareerNFT(_nftContractAddress);
     }
 
@@ -72,7 +72,7 @@ contract StampManager {
      * @param issuer チェックするアドレス
      * @return 参加企業NFTを所有しているかどうか（現在は常にtrue）
      */
-    function hasPlatformNFT(address issuer) public pure returns (bool) {
+    function hasPlatformNft(address issuer) public pure returns (bool) {
         // PoCのため、すべてのアドレスが参加企業NFTを持っているとみなす
         // 将来の実装: platformNFTContract.balanceOf(issuer) > 0
         return true;
@@ -80,6 +80,7 @@ contract StampManager {
 
     /**
      * @dev NFT証明書を発行（所有者または参加企業NFT所有者が実行可能、条件チェック付き）
+     * 同一企業のスタンプ3個以上でCommon NFTを発行（スタンプは保持されます）
      * @param to 受け取るユーザーのアドレス
      * @param uri メタデータURI
      * @param name NFT名
@@ -87,7 +88,7 @@ contract StampManager {
      * @param organization 組織名
      * @return tokenId 発行されたNFTのtokenId
      */
-    function mintNFT(
+    function mintNft(
         address to,
         string memory uri,
         string memory name,
@@ -96,7 +97,7 @@ contract StampManager {
     ) public returns (uint256) {
         // 所有者または参加企業NFT所有者のみが実行可能
         require(
-            msg.sender == owner || hasPlatformNFT(msg.sender),
+            msg.sender == owner || hasPlatformNft(msg.sender),
             "Not authorized: must be owner or have platform NFT"
         );
 
@@ -112,12 +113,54 @@ contract StampManager {
             "NFT contract not set"
         );
 
-        // NFTを発行
+        // NFTを発行（発行者アドレスを渡す、画像タイプは0で自動決定）
         string[] memory organizations = new string[](1);
         organizations[0] = organization;
-        uint256 tokenId = nftContract.mint(to, uri, name, rarity, organizations);
+        uint256 tokenId = nftContract.mint(to, uri, name, rarity, organizations, msg.sender, 0);
 
-        emit NFTMinted(to, tokenId, name, organization);
+        // イベントに発行者アドレスを含める
+        emit NFTMinted(to, msg.sender, tokenId, name, organization);
+        return tokenId;
+    }
+
+    /**
+     * @dev 異業種3種類のスタンプでレアNFT証明書を発行（所有者または参加企業NFT所有者が実行可能）
+     * スタンプはバーンされず、そのまま保持されます
+     * @param to 受け取るユーザーのアドレス
+     * @param uri メタデータURI
+     * @param name NFT名
+     * @param rarity レアリティ（通常は"Rare"）
+     * @param organizations 関連組織の配列
+     * @return tokenId 発行されたNFTのtokenId
+     */
+    function mintRareNftWithDifferentCategories(
+        address to,
+        string memory uri,
+        string memory name,
+        string memory rarity,
+        string[] memory organizations
+    ) public returns (uint256) {
+        // 所有者または参加企業NFT所有者のみが実行可能
+        require(
+            msg.sender == owner || hasPlatformNft(msg.sender),
+            "Not authorized: must be owner or have platform NFT"
+        );
+
+        // 発行条件をチェック（異業種3種類のスタンプが必要）
+        (bool canMint, ) = canMintRareNftWithDifferentCategories(to);
+        require(canMint, "User does not have enough different category stamps to mint Rare NFT");
+
+        // NFTコントラクトが設定されているか確認
+        require(
+            address(nftContract) != address(0),
+            "NFT contract not set"
+        );
+
+        // NFTを発行（発行者アドレスを渡す、画像タイプは0で自動決定）
+        uint256 tokenId = nftContract.mint(to, uri, name, rarity, organizations, msg.sender, 0);
+
+        // イベントに発行者アドレスを含める
+        emit NFTMinted(to, msg.sender, tokenId, name, organizations.length > 0 ? organizations[0] : "");
         return tokenId;
     }
 
@@ -162,6 +205,7 @@ contract StampManager {
      * @param organization 発行組織
      * @param category カテゴリ
      * @param amount 発行数量（通常は1）
+     * @param imageType 画像タイプ（0の場合はカテゴリに基づいて自動決定）
      * @return tokenId 発行されたスタンプのtokenId
      */
     function issueStamp(
@@ -169,22 +213,70 @@ contract StampManager {
         string memory name,
         string memory organization,
         string memory category,
-        uint256 amount
+        uint256 amount,
+        uint8 imageType
     ) public returns (uint256) {
         require(amount > 0, "Amount must be greater than 0");
         
         // 所有者または参加企業NFT所有者のみが実行可能
         require(
-            msg.sender == owner || hasPlatformNFT(msg.sender),
+            msg.sender == owner || hasPlatformNft(msg.sender),
             "Not authorized: must be owner or have platform NFT"
         );
         
-        // SFTコントラクトを使用してスタンプをmint
-        uint256 tokenId = stampSFT.mintStamp(user, name, organization, category, amount);
+        // 画像タイプが0の場合は、カテゴリに基づいて自動決定
+        uint8 finalImageType = imageType;
+        if (finalImageType == 0) {
+            finalImageType = _getImageTypeByCategory(category);
+        }
         
-        emit StampIssued(user, name, organization, block.timestamp, tokenId);
+        // SFTコントラクトを使用してスタンプをmint（発行者アドレスと画像タイプを渡す）
+        uint256 tokenId = stampSft.mintStamp(user, name, organization, category, amount, msg.sender, finalImageType);
+        
+        // イベントに発行者アドレスを含める
+        emit StampIssued(user, msg.sender, name, organization, block.timestamp, tokenId);
         
         return tokenId;
+    }
+
+    /**
+     * @dev カテゴリに基づいて画像タイプを決定（内部関数）
+     * @param category カテゴリ
+     * @return imageType 画像タイプ
+     */
+    function _getImageTypeByCategory(string memory category) internal pure returns (uint8) {
+        bytes32 categoryHash = keccak256(bytes(category));
+        
+        // カテゴリに基づいて画像タイプを決定
+        if (categoryHash == keccak256(bytes("finance"))) {
+            return 1; // 💰
+        } else if (categoryHash == keccak256(bytes("marketing"))) {
+            return 2; // 📊
+        } else if (categoryHash == keccak256(bytes("business"))) {
+            return 3; // 💼
+        } else if (categoryHash == keccak256(bytes("programming"))) {
+            return 4; // 💻
+        } else if (categoryHash == keccak256(bytes("design"))) {
+            return 5; // 🎨
+        } else if (categoryHash == keccak256(bytes("sales"))) {
+            return 6; // 📞
+        } else if (categoryHash == keccak256(bytes("consulting"))) {
+            return 7; // 💡
+        } else if (categoryHash == keccak256(bytes("hr"))) {
+            return 8; // 👥
+        } else if (categoryHash == keccak256(bytes("accounting"))) {
+            return 9; // 📈
+        } else if (categoryHash == keccak256(bytes("legal"))) {
+            return 10; // ⚖️
+        } else if (categoryHash == keccak256(bytes("engineering"))) {
+            return 11; // 🔧
+        } else if (categoryHash == keccak256(bytes("research"))) {
+            return 12; // 🔬
+        } else if (categoryHash == keccak256(bytes("education"))) {
+            return 13; // 📚
+        } else {
+            return 0; // デフォルト（🎫）
+        }
     }
 
     /**
@@ -198,7 +290,7 @@ contract StampManager {
         view 
         returns (uint256[] memory tokenIds, uint256[] memory amounts) 
     {
-        return stampSFT.getUserStamps(user);
+        return stampSft.getUserStamps(user);
     }
 
     /**
@@ -211,7 +303,7 @@ contract StampManager {
         view 
         returns (CareerStampSFT.StampMetadata memory) 
     {
-        return stampSFT.getStampMetadata(tokenId);
+        return stampSft.getStampMetadata(tokenId);
     }
 
     /**
@@ -225,7 +317,7 @@ contract StampManager {
         view 
         returns (uint256) 
     {
-        return stampSFT.getOrganizationStampCount(user, org);
+        return stampSft.getOrganizationStampCount(user, org);
     }
 
     /**
@@ -240,11 +332,11 @@ contract StampManager {
         returns (uint256) 
     {
         // SFTからカテゴリ別のスタンプ数を計算
-        (uint256[] memory tokenIds, uint256[] memory amounts) = stampSFT.getUserStamps(user);
+        (uint256[] memory tokenIds, uint256[] memory amounts) = stampSft.getUserStamps(user);
         uint256 count = 0;
         
         for (uint256 i = 0; i < tokenIds.length; i++) {
-            CareerStampSFT.StampMetadata memory metadata = stampSFT.getStampMetadata(tokenIds[i]);
+            CareerStampSFT.StampMetadata memory metadata = stampSft.getStampMetadata(tokenIds[i]);
             if (keccak256(bytes(metadata.category)) == keccak256(bytes(category))) {
                 count += amounts[i];
             }
@@ -260,7 +352,44 @@ contract StampManager {
      * @return 発行可能かどうか
      */
     function canMintNft(address user, string memory organization) public view returns (bool) {
-        return stampSFT.getOrganizationStampCount(user, organization) >= 3;
+        return stampSft.getOrganizationStampCount(user, organization) >= 3;
+    }
+
+    /**
+     * @dev 異業種3種類のスタンプがあればレアNFT発行可能
+     * @param user ユーザーアドレス
+     * @return 発行可能かどうか
+     * @return categoryCount 異なるカテゴリの数
+     */
+    function canMintRareNftWithDifferentCategories(address user) public view returns (bool, uint256) {
+        (uint256[] memory tokenIds, uint256[] memory amounts) = stampSft.getUserStamps(user);
+        
+        // カテゴリごとのスタンプ数をカウント（1枚以上あればカウント）
+        string[] memory checkedCategories = new string[](tokenIds.length);
+        uint256 checkedCount = 0;
+        
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            if (amounts[i] > 0) {
+                CareerStampSFT.StampMetadata memory metadata = stampSft.getStampMetadata(tokenIds[i]);
+                string memory category = metadata.category;
+                
+                // 既にチェックしたカテゴリかどうか確認
+                bool alreadyChecked = false;
+                for (uint256 j = 0; j < checkedCount; j++) {
+                    if (keccak256(bytes(checkedCategories[j])) == keccak256(bytes(category))) {
+                        alreadyChecked = true;
+                        break;
+                    }
+                }
+                
+                if (!alreadyChecked) {
+                    checkedCategories[checkedCount] = category;
+                    checkedCount++;
+                }
+            }
+        }
+        
+        return (checkedCount >= 3, checkedCount);
     }
 
     /**
@@ -269,7 +398,7 @@ contract StampManager {
      * @return count 総スタンプ数
      */
     function getUserStampCount(address user) public view returns (uint256) {
-        (uint256[] memory tokenIds, uint256[] memory amounts) = stampSFT.getUserStamps(user);
+        (uint256[] memory tokenIds, uint256[] memory amounts) = stampSft.getUserStamps(user);
         uint256 total = 0;
         for (uint256 i = 0; i < amounts.length; i++) {
             total += amounts[i];
@@ -349,7 +478,7 @@ contract StampManager {
         uint256 qualifiedOrgs = 0;
         
         for (uint256 i = 0; i < tokenIds.length; i++) {
-            CareerStampSFT.StampMetadata memory metadata = stampSFT.getStampMetadata(tokenIds[i]);
+            CareerStampSFT.StampMetadata memory metadata = stampSft.getStampMetadata(tokenIds[i]);
             string memory org = metadata.organization;
             
             // 既にチェックした組織かどうか確認
@@ -363,7 +492,7 @@ contract StampManager {
             
             if (!alreadyChecked) {
                 // この組織のスタンプ数を取得（SFTから）
-                uint256 orgCount = stampSFT.getOrganizationStampCount(user, org);
+                uint256 orgCount = stampSft.getOrganizationStampCount(user, org);
                 if (orgCount >= rule.stampsPerOrg) {
                     qualifiedOrgs++;
                 }

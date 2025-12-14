@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useWallet } from "../hooks/useWallet";
+import { useWalletConnect } from "../hooks/useWalletConnect";
 import { eventAPI } from "../lib/api";
 import { formatOrganization } from "../lib/utils";
 import { storage } from "../lib/storage";
@@ -8,7 +8,7 @@ import { storage } from "../lib/storage";
 export default function StudentEventApply() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { account, isConnected } = useWallet();
+  const { account, isConnected } = useWalletConnect();
   const [event, setEvent] = useState(null);
   const [formData, setFormData] = useState({
     motivation: "",

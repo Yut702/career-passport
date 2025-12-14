@@ -51,17 +51,6 @@ export default function StudentLayout({ children }) {
                 マイページ
               </Link>
               <Link
-                to="/student/nfts"
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  location.pathname === "/student/nfts" ||
-                  location.pathname.startsWith("/student/nft/")
-                    ? "bg-blue-100 text-blue-700"
-                    : "text-gray-700 hover:bg-gray-100"
-                }`}
-              >
-                NFT 証明書
-              </Link>
-              <Link
                 to="/student/events"
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   location.pathname.startsWith("/student/events")

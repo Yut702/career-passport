@@ -1,28 +1,349 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { storage } from "../lib/storage";
+import { useContracts } from "../hooks/useContracts";
+import { useWalletConnect } from "../hooks/useWalletConnect";
+import StampCard from "../components/StampCard";
+import NFTCard from "../components/NFTCard";
 
 export default function OrgNFTs() {
+  const { nftContract, stampManagerContract, isReady } = useContracts();
+  const { account, isConnected } = useWalletConnect();
   const [nfts, setNfts] = useState([]);
+  const [stamps, setStamps] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingStamps, setLoadingStamps] = useState(true);
+  const [organization, setOrganization] = useState(null);
 
-  useEffect(() => {
-    const loadNFTs = async () => {
-      try {
-        const nftsData = storage.getNFTs();
-        // 企業が発行したNFTをフィルタリング（実際の実装ではAPIから取得）
-        setNfts(nftsData || []);
-        setLoading(false);
-      } catch (err) {
-        console.error("Error loading NFTs:", err);
-        setLoading(false);
+  /**
+   * 企業の組織名を取得
+   */
+  const loadOrganization = useCallback(async () => {
+    if (!stampManagerContract || !account || !isReady) {
+      // コントラクトが準備できていない場合は、組織名なしでNFTを読み込む
+      setOrganization("");
+      return;
+    }
+
+    try {
+      // コントラクトが存在するか確認
+      const contractCode = await stampManagerContract.runner.provider.getCode(
+        stampManagerContract.target
+      );
+      if (contractCode === "0x" || contractCode === "0x0") {
+        // コントラクトが存在しない場合は初期状態として扱う
+        setOrganization("");
+        return;
       }
-    };
 
-    loadNFTs();
-  }, []);
+      const orgName = await stampManagerContract.issuerOrganization(account);
+      console.log("組織名を取得:", orgName, "アドレス:", account);
+      if (orgName && orgName.trim() !== "") {
+        setOrganization(orgName);
+      } else {
+        // 組織名が設定されていない場合は空文字列を設定（すべてのNFTを表示）
+        console.warn("組織名が設定されていません。すべてのNFTを表示します。");
+        setOrganization("");
+      }
+    } catch (err) {
+      // コントラクトが存在しない、またはデータが存在しない場合は初期状態として扱う
+      if (
+        err.code === "BAD_DATA" ||
+        err.message?.includes("could not decode result data") ||
+        err.message?.includes('value="0x"')
+      ) {
+        // 初期状態として扱う（エラーを表示しない）
+        setOrganization("");
+        return;
+      }
+      console.error("Error loading organization:", err);
+      // エラーが発生した場合も空文字列を設定して続行
+      setOrganization("");
+    }
+  }, [stampManagerContract, account, isReady]);
 
-  if (loading) {
+  /**
+   * 企業が発行したスタンプをブロックチェーンから取得（StampIssuedイベントから）
+   */
+  const loadStamps = useCallback(async () => {
+    if (!stampManagerContract || !account || !isReady) {
+      setLoadingStamps(false);
+      return;
+    }
+
+    // organizationがnullの場合は、まだ組織名を読み込み中なので待つ
+    if (organization === null) {
+      return;
+    }
+
+    setLoadingStamps(true);
+    console.log(
+      "スタンプを読み込み中... 組織名:",
+      organization || "（すべて）"
+    );
+
+    try {
+      // コントラクトの存在確認
+      const contractCode = await stampManagerContract.runner.provider.getCode(
+        stampManagerContract.target
+      );
+      if (contractCode === "0x" || contractCode === "0x0") {
+        console.warn("StampManagerコントラクトが存在しません");
+        setStamps([]);
+        setLoadingStamps(false);
+        return;
+      }
+
+      // StampIssuedイベントをクエリ（組織名でフィルタリング）
+      // 注意: イベントのorganizationはindexedではないため、すべてのイベントを取得してフィルタリングする必要がある
+      const filter = stampManagerContract.filters.StampIssued();
+      const events = await stampManagerContract.queryFilter(filter);
+
+      const issuedStamps = [];
+      const seenTokenIds = new Set(); // 重複を防ぐ
+
+      for (const event of events) {
+        try {
+          const eventArgs = event.args;
+          const eventIssuer = eventArgs.issuer; // 発行者アドレス
+          const eventOrganization = eventArgs.organization;
+          const tokenId = eventArgs.tokenId;
+
+          // 発行者アドレスが一致する場合のみ追加（接続中のアカウントが発行者）
+          const isIssuerMatch =
+            eventIssuer && account
+              ? eventIssuer.toLowerCase() === account.toLowerCase()
+              : false;
+
+          // 組織名が一致する場合のみ追加（組織名が設定されていない場合はすべて表示）
+          const isOrgMatch =
+            organization && organization.trim() !== ""
+              ? eventOrganization.toLowerCase() === organization.toLowerCase()
+              : true;
+
+          // 発行者アドレスと組織名の両方が一致する場合のみ追加
+          const shouldInclude = isIssuerMatch && isOrgMatch;
+
+          if (shouldInclude && !seenTokenIds.has(tokenId.toString())) {
+            seenTokenIds.add(tokenId.toString());
+
+            // スタンプのメタデータを取得
+            const metadata = await stampManagerContract.getStampMetadata(
+              tokenId
+            );
+            const stampName = Array.isArray(metadata)
+              ? metadata[0]
+              : metadata.name;
+            const stampOrganization = Array.isArray(metadata)
+              ? metadata[1]
+              : metadata.organization;
+            const stampCategory = Array.isArray(metadata)
+              ? metadata[2]
+              : metadata.category;
+            const stampCreatedAt = Array.isArray(metadata)
+              ? metadata[3]
+              : metadata.createdAt;
+            const stampImageType = Array.isArray(metadata)
+              ? metadata[5] !== undefined
+                ? Number(metadata[5])
+                : 0
+              : metadata.imageType !== undefined
+              ? Number(metadata.imageType)
+              : 0;
+
+            issuedStamps.push({
+              id: `stamp_${tokenId}`,
+              tokenId: tokenId.toString(),
+              name: stampName,
+              organization: stampOrganization,
+              category: stampCategory,
+              issuedAt: new Date(Number(stampCreatedAt) * 1000)
+                .toISOString()
+                .split("T")[0],
+              userAddress: eventArgs.user,
+              imageType: stampImageType,
+            });
+          }
+        } catch (err) {
+          console.warn(`イベント処理エラー:`, err);
+        }
+      }
+
+      // 発行日順（新しい順）にソート
+      issuedStamps.sort((a, b) => new Date(b.issuedAt) - new Date(a.issuedAt));
+
+      setStamps(issuedStamps);
+    } catch (err) {
+      console.error("Error loading stamps:", err);
+      setStamps([]);
+    } finally {
+      setLoadingStamps(false);
+    }
+  }, [stampManagerContract, account, isReady, organization]);
+
+  /**
+   * 企業が発行したNFTをブロックチェーンから取得
+   */
+  const loadNFTs = useCallback(async () => {
+    if (!nftContract || !account || !isReady) {
+      setLoading(false);
+      return;
+    }
+
+    // organizationがnullの場合は、まだ組織名を読み込み中なので待つ
+    if (organization === null) {
+      return;
+    }
+
+    setLoading(true);
+    console.log("NFTを読み込み中... 組織名:", organization || "（すべて）");
+
+    try {
+      // コントラクトの存在確認
+      const contractCode = await nftContract.runner.provider.getCode(
+        nftContract.target
+      );
+      if (contractCode === "0x" || contractCode === "0x0") {
+        console.warn("NFTコントラクトが存在しません");
+        setNfts([]);
+        setLoading(false);
+        return;
+      }
+
+      // 総供給量を取得
+      let totalSupply = 0;
+      let totalSupplyNumber = 0;
+      try {
+        totalSupply = await nftContract.getTotalSupply();
+        totalSupplyNumber = Number(totalSupply);
+      } catch (err) {
+        // コントラクトが存在しない、またはデータが存在しない場合は0として扱う
+        if (
+          err.code === "BAD_DATA" ||
+          err.message?.includes("could not decode result data") ||
+          err.message?.includes('value="0x"')
+        ) {
+          // 初期状態として扱う（エラーを表示しない）
+          totalSupplyNumber = 0;
+        } else {
+          console.warn("getTotalSupply: エラー", err);
+        }
+      }
+
+      // すべてのNFTをループして、自分の組織が含まれているものを取得
+      const issuedNFTs = [];
+
+      for (let i = 0; i < totalSupplyNumber; i++) {
+        try {
+          // NFTの組織名を取得
+          const organizations = await nftContract.getTokenOrganizations(i);
+
+          // 組織名が設定されている場合はフィルタリング、設定されていない場合はすべて表示
+          const shouldInclude =
+            organization && organization.trim() !== ""
+              ? organizations.some(
+                  (org) => org.toLowerCase() === organization.toLowerCase()
+                )
+              : true; // 組織名が設定されていない場合はすべて表示
+
+          if (shouldInclude) {
+            // NFTの詳細情報を取得
+            const tokenURI = await nftContract.tokenURI(i);
+            const tokenName = await nftContract.getTokenName(i);
+            const rarity = await nftContract.getTokenRarity(i);
+            const owner = await nftContract.ownerOf(i);
+            const imageType = await nftContract.getTokenImageType(i);
+            const issuer = await nftContract.getTokenIssuer(i); // 発行者アドレスを取得
+
+            // 発行者アドレスが一致する場合のみ追加（接続中のアカウントが発行者）
+            const isIssuerMatch =
+              issuer && account
+                ? issuer.toLowerCase() === account.toLowerCase()
+                : false;
+
+            if (!isIssuerMatch) {
+              continue; // 発行者が一致しない場合はスキップ
+            }
+
+            issuedNFTs.push({
+              id: `nft_${i}`,
+              tokenId: i,
+              name: tokenName,
+              description: "", // 説明（メタデータから取得する場合は tokenURI を使用）
+              rarity: rarity.toLowerCase(),
+              organizations: organizations,
+              contractAddress: nftContract.target,
+              metadataURI: tokenURI,
+              owner: owner,
+              issuedAt: new Date().toISOString().split("T")[0], // 発行日（簡易版）
+              imageType: Number(imageType),
+            });
+          }
+        } catch (err) {
+          // トークンが存在しない場合はスキップ
+          console.warn(`Token ${i} does not exist:`, err);
+        }
+      }
+
+      // 発行日順（新しい順）にソート
+      issuedNFTs.sort((a, b) => b.tokenId - a.tokenId);
+
+      setNfts(issuedNFTs);
+    } catch (err) {
+      console.error("Error loading NFTs:", err);
+      setNfts([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [nftContract, account, isReady, organization]);
+
+  // 組織名を読み込む
+  useEffect(() => {
+    if (isConnected && account && isReady) {
+      loadOrganization();
+    } else if (!isConnected || !account) {
+      // ウォレットが接続されていない場合は、組織名をリセット
+      setOrganization(null);
+      setLoading(false);
+    } else if (isReady && organization === null) {
+      // isReadyがtrueになったが、まだ組織名が取得できていない場合は空文字列を設定
+      console.warn(
+        "コントラクトは準備できていますが、組織名が取得できませんでした。すべてのNFTを表示します。"
+      );
+      setOrganization("");
+    }
+  }, [isConnected, account, isReady, loadOrganization, organization]);
+
+  // スタンプとNFTを読み込む（組織名が取得できた後、または空文字列が設定された後）
+  useEffect(() => {
+    if (organization !== null && isReady) {
+      loadStamps();
+      loadNFTs();
+    }
+  }, [organization, isReady, loadStamps, loadNFTs]);
+
+  // タイムアウト処理：組織名の取得に時間がかかる場合でも、一定時間後に読み込みを完了させる
+  useEffect(() => {
+    if (isConnected && account && isReady && organization === null && loading) {
+      const timeout = setTimeout(() => {
+        console.warn(
+          "組織名の取得がタイムアウトしました。すべてのNFTを表示します。"
+        );
+        setOrganization("");
+      }, 3000); // 3秒後にタイムアウト
+
+      return () => clearTimeout(timeout);
+    }
+  }, [isConnected, account, isReady, organization, loading]);
+
+  if (!isConnected || !account) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="text-gray-600">ウォレットを接続してください</div>
+      </div>
+    );
+  }
+
+  if (loading || loadingStamps) {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="text-gray-600">読み込み中...</div>
@@ -31,58 +352,98 @@ export default function OrgNFTs() {
   }
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-4xl font-bold text-gray-900 mb-2">所持NFT一覧</h1>
-        <p className="text-gray-600">発行したNFT証明書の一覧を確認できます</p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {nfts.map((nft) => (
+    <div className="space-y-12">
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">
+            スタンプ/NFT一覧
+          </h1>
+          <p className="text-gray-600">
+            発行したスタンプとNFT証明書の一覧を確認できます
+          </p>
+        </div>
+        <div className="flex space-x-4">
           <Link
-            key={nft.id}
-            to={`/org/nft/${nft.id}`}
-            className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl transition-shadow"
+            to="/org/stamp-issuance"
+            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
           >
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-purple-400 to-pink-500 rounded-xl flex items-center justify-center">
-                <span className="text-3xl">🏆</span>
-              </div>
-              <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
-                NFT #{nft.id}
-              </span>
-            </div>
-
-            <h3 className="text-xl font-bold text-gray-900 mb-2">{nft.name}</h3>
-            <p className="text-sm text-gray-600 mb-4">{nft.organization}</p>
-            <p className="text-gray-700 text-sm line-clamp-2">
-              {nft.description}
-            </p>
-
-            <div className="mt-4 text-sm text-gray-500">
-              発行日:{" "}
-              {new Date(nft.issuedAt).toLocaleDateString("ja-JP", {
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })}
-            </div>
+            🎫 スタンプを発行
           </Link>
-        ))}
-      </div>
-
-      {nfts.length === 0 && (
-        <div className="text-center py-12 bg-white rounded-2xl shadow-lg">
-          <div className="text-6xl mb-4">📭</div>
-          <p className="text-gray-500 text-lg">まだNFTを発行していません</p>
           <Link
-            to="/org/events"
-            className="mt-4 inline-block px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
+            to="/org/nft-applications"
+            className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-6 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
           >
-            NFT発行イベントを作成
+            📝 NFT申請を確認
           </Link>
         </div>
-      )}
+      </div>
+
+      {/* スタンプ一覧セクション */}
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+            スタンプ一覧
+          </h2>
+          <p className="text-gray-600 text-sm">発行したスタンプの一覧</p>
+        </div>
+
+        {stamps.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {stamps.map((stamp) => (
+              <div key={stamp.id} className="relative">
+                <StampCard stamp={stamp} />
+                {/* 企業側用の追加情報 */}
+                <div className="mt-2 text-xs text-gray-400 break-all text-center">
+                  受取人: {stamp.userAddress?.slice(0, 6)}...
+                  {stamp.userAddress?.slice(-4)}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12 bg-white rounded-2xl shadow-lg">
+            <div className="text-6xl mb-4">🎫</div>
+            <p className="text-gray-500 text-lg">
+              まだスタンプを発行していません
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* NFT一覧セクション */}
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">NFT一覧</h2>
+          <p className="text-gray-600 text-sm">発行したNFT証明書の一覧</p>
+        </div>
+
+        {nfts.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {nfts.map((nft) => {
+              // NFTCard用にデータを整形
+              const nftCardData = {
+                ...nft,
+                id: nft.id || `nft_${nft.tokenId}`,
+                mintedAt: nft.issuedAt || nft.mintedAt,
+              };
+              const nftId = nft.id || `nft_${nft.tokenId}`;
+              return (
+                <NFTCard
+                  key={nftId}
+                  nft={nftCardData}
+                  showLink={true}
+                  linkTo={`/org/nft/${nftId}`}
+                />
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-12 bg-white rounded-2xl shadow-lg">
+            <div className="text-6xl mb-4">🏆</div>
+            <p className="text-gray-500 text-lg">まだNFTを発行していません</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

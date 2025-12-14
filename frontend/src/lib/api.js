@@ -372,6 +372,48 @@ export const jobConditionAPI = {
 };
 
 /**
+ * 企業管理 API
+ */
+export const companyAPI = {
+  /**
+   * ウォレットアドレスで企業を取得
+   *
+   * @param {string} walletAddress - ウォレットアドレス
+   * @returns {Promise<Object>} 企業データ
+   */
+  getByWalletAddress: async (walletAddress) => {
+    return request(`/companies/${walletAddress}`);
+  },
+
+  /**
+   * すべての企業を取得
+   *
+   * @param {string} status - ステータスでフィルタ（オプション）
+   * @returns {Promise<Object>} 企業一覧
+   */
+  getAll: async (status = null) => {
+    const query = status ? `?status=${status}` : "";
+    return request(`/companies${query}`);
+  },
+
+  /**
+   * 企業を登録または更新
+   *
+   * @param {Object} companyData - 企業データ
+   * @param {string} companyData.walletAddress - ウォレットアドレス
+   * @param {string} companyData.companyName - 企業名
+   * @param {string} companyData.status - ステータス（オプション）
+   * @returns {Promise<Object>} 登録された企業データ
+   */
+  createOrUpdate: async (companyData) => {
+    return request("/companies", {
+      method: "POST",
+      body: JSON.stringify(companyData),
+    });
+  },
+};
+
+/**
  * ZKP証明 API
  */
 export const zkpProofAPI = {
@@ -418,5 +460,92 @@ export const zkpProofAPI = {
    */
   getZKPProofFull: async (proofId) => {
     return request(`/zkp-proofs/${proofId}/full`);
+  },
+};
+
+/**
+ * NFT申請 API
+ */
+export const nftApplicationAPI = {
+  /**
+   * NFT申請を作成
+   *
+   * @param {string} userWalletAddress - ユーザーのウォレットアドレス
+   * @param {string} orgWalletAddress - 企業のウォレットアドレス
+   * @param {string} organization - 企業名
+   * @param {number} stampCount - スタンプ数
+   * @returns {Promise<Object>} 作成された申請
+   */
+  create: async (
+    userWalletAddress,
+    orgWalletAddress,
+    organization,
+    stampCount
+  ) => {
+    return request("/nft-applications", {
+      method: "POST",
+      body: JSON.stringify({
+        userWalletAddress,
+        orgWalletAddress,
+        organization,
+        stampCount,
+      }),
+    });
+  },
+
+  /**
+   * ユーザーの申請一覧を取得
+   *
+   * @param {string} walletAddress - ウォレットアドレス
+   * @returns {Promise<Array>} 申請一覧
+   */
+  getByUser: async (walletAddress) => {
+    return request(`/nft-applications/user/${walletAddress}`);
+  },
+
+  /**
+   * 企業の申請一覧を取得
+   *
+   * @param {string} walletAddress - 企業のウォレットアドレス
+   * @returns {Promise<Array>} 申請一覧
+   */
+  getByOrg: async (walletAddress) => {
+    return request(`/nft-applications/org/${walletAddress}`);
+  },
+
+  /**
+   * 申請詳細を取得
+   *
+   * @param {string} applicationId - 申請ID
+   * @returns {Promise<Object>} 申請詳細
+   */
+  getById: async (applicationId) => {
+    return request(`/nft-applications/${applicationId}`);
+  },
+
+  /**
+   * 申請ステータスを更新
+   *
+   * @param {string} applicationId - 申請ID
+   * @param {string} status - ステータス（pending, approved, rejected, issued）
+   * @returns {Promise<Object>} 更新された申請
+   */
+  updateStatus: async (applicationId, status) => {
+    return request(`/nft-applications/${applicationId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    });
+  },
+
+  /**
+   * 申請を削除
+   *
+   * @param {string} applicationId - 申請ID
+   * @returns {Promise<Object>} 削除結果
+   */
+  delete: async (applicationId) => {
+    return request(`/nft-applications/${applicationId}`, {
+      method: "DELETE",
+    });
   },
 };
