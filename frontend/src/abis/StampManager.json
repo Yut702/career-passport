@@ -3,11 +3,29 @@
     "type": "constructor",
     "inputs": [
       {
-        "name": "_stampSFTAddress",
+        "name": "_stampSftAddress",
         "type": "address",
         "internalType": "address"
       }
     ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "addAuthorizedIssuer",
+    "inputs": [
+      {
+        "name": "issuer",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "organization",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [],
     "stateMutability": "nonpayable"
   },
   {
@@ -41,6 +59,25 @@
   },
   {
     "type": "function",
+    "name": "authorizedIssuers",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "canMintNft",
     "inputs": [
       {
@@ -59,6 +96,30 @@
         "name": "",
         "type": "bool",
         "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "canMintRareNftWithDifferentCategories",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -294,6 +355,16 @@
             "name": "createdAt",
             "type": "uint256",
             "internalType": "uint256"
+          },
+          {
+            "name": "issuer",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "imageType",
+            "type": "uint8",
+            "internalType": "uint8"
           }
         ]
       }
@@ -345,6 +416,25 @@
   },
   {
     "type": "function",
+    "name": "hasPlatformNft",
+    "inputs": [
+      {
+        "name": "issuer",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "function",
     "name": "issueStamp",
     "inputs": [
       {
@@ -371,6 +461,11 @@
         "name": "amount",
         "type": "uint256",
         "internalType": "uint256"
+      },
+      {
+        "name": "imageType",
+        "type": "uint8",
+        "internalType": "uint8"
       }
     ],
     "outputs": [
@@ -384,7 +479,26 @@
   },
   {
     "type": "function",
-    "name": "mintNFT",
+    "name": "issuerOrganization",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "mintNft",
     "inputs": [
       {
         "name": "to",
@@ -410,6 +524,45 @@
         "name": "organization",
         "type": "string",
         "internalType": "string"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "mintRareNftWithDifferentCategories",
+    "inputs": [
+      {
+        "name": "to",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "uri",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "rarity",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "organizations",
+        "type": "string[]",
+        "internalType": "string[]"
       }
     ],
     "outputs": [
@@ -501,7 +654,20 @@
   },
   {
     "type": "function",
-    "name": "setNFTContract",
+    "name": "removeAuthorizedIssuer",
+    "inputs": [
+      {
+        "name": "issuer",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setNftContract",
     "inputs": [
       {
         "name": "_nftContractAddress",
@@ -532,10 +698,10 @@
   },
   {
     "type": "function",
-    "name": "setStampSFT",
+    "name": "setStampSft",
     "inputs": [
       {
-        "name": "_stampSFTAddress",
+        "name": "_stampSftAddress",
         "type": "address",
         "internalType": "address"
       }
@@ -545,7 +711,7 @@
   },
   {
     "type": "function",
-    "name": "stampSFT",
+    "name": "stampSft",
     "inputs": [],
     "outputs": [
       {
@@ -555,6 +721,38 @@
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "event",
+    "name": "AuthorizedIssuerAdded",
+    "inputs": [
+      {
+        "name": "issuer",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "organization",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "AuthorizedIssuerRemoved",
+    "inputs": [
+      {
+        "name": "issuer",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
   },
   {
     "type": "event",
@@ -617,6 +815,12 @@
         "internalType": "address"
       },
       {
+        "name": "issuer",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
         "name": "tokenId",
         "type": "uint256",
         "indexed": true,
@@ -643,6 +847,12 @@
     "inputs": [
       {
         "name": "user",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "issuer",
         "type": "address",
         "indexed": true,
         "internalType": "address"

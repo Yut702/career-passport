@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useWallet } from "../hooks/useWallet";
+import { useWalletConnect } from "../hooks/useWalletConnect";
 import { eventAPI } from "../lib/api";
 
 export default function OrgEventCreate() {
   const navigate = useNavigate();
-  const { account, isConnected } = useWallet();
+  const { account, isConnected } = useWalletConnect();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     title: "",

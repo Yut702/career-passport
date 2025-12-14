@@ -28,6 +28,7 @@ import OrgEvents from "./pages/OrgEvents";
 import OrgEventCreate from "./pages/OrgEventCreate";
 import OrgEventApplications from "./pages/OrgEventApplications";
 import OrgEventCollaborate from "./pages/OrgEventCollaborate";
+import OrgNFTApplications from "./pages/OrgNFTApplications";
 import OrgRecruitmentConditions from "./pages/OrgRecruitmentConditions";
 import OrgCandidateSearch from "./pages/OrgCandidateSearch";
 import OrgMatchedCandidates from "./pages/OrgMatchedCandidates";
@@ -197,6 +198,14 @@ export default function RouterComponent() {
           element={
             <OrgLayout>
               <OrgNFTDetail />
+            </OrgLayout>
+          }
+        />
+        <Route
+          path="/org/nft-applications"
+          element={
+            <OrgLayout>
+              <OrgNFTApplications />
             </OrgLayout>
           }
         />

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import NFTCard from "../components/NFTCard";
 import { useContracts } from "../hooks/useContracts";
-import { useWallet } from "../hooks/useWallet";
+import { useWalletConnect } from "../hooks/useWalletConnect";
 import { storage } from "../lib/storage";
 
 /**
@@ -12,9 +12,9 @@ import { storage } from "../lib/storage";
  */
 export default function MyNFTs() {
   // コントラクトインスタンスを取得
-  const { nftContract, isReady } = useContracts();
+  const { nftContract } = useContracts();
   // ウォレット接続状態を取得
-  const { account, isConnected } = useWallet();
+  const { account, isConnected } = useWalletConnect();
 
   // 状態管理
   const [nfts, setNfts] = useState([]);
@@ -70,7 +70,21 @@ export default function MyNFTs() {
    */
   const loadNFTs = useCallback(async () => {
     // コントラクトとアカウントが存在しない場合は処理を中断
-    if (!nftContract || !account) return;
+    if (!nftContract || !account) {
+      console.log(
+        "[MyNFTs] loadNFTs: コントラクトまたはアカウントが存在しません",
+        {
+          nftContract: !!nftContract,
+          account: !!account,
+        }
+      );
+      return;
+    }
+
+    console.log("[MyNFTs] loadNFTs: NFT読み込み開始", {
+      contractAddress: nftContract.target,
+      account: account,
+    });
 
     setLoading(true);
     setError(null);
@@ -83,8 +97,33 @@ export default function MyNFTs() {
        * 現在までに発行された NFT の総数を返します。
        * この値を使って、すべてのトークン ID をループ処理します。
        */
-      const totalSupply = await nftContract.getTotalSupply();
-      const totalSupplyNumber = Number(totalSupply);
+      let totalSupply = 0;
+      let totalSupplyNumber = 0;
+      try {
+        // コントラクトが存在するか確認
+        const contractCode = await nftContract.runner.provider.getCode(
+          nftContract.target
+        );
+        if (contractCode !== "0x" && contractCode !== "0x0") {
+          totalSupply = await nftContract.getTotalSupply();
+          totalSupplyNumber = Number(totalSupply);
+          console.log("[MyNFTs] 総供給量:", totalSupplyNumber);
+        } else {
+          console.warn("[MyNFTs] コントラクトコードが存在しません");
+        }
+      } catch (err) {
+        // コントラクトが存在しない、またはデータが存在しない場合は0として扱う
+        if (
+          err.code === "BAD_DATA" ||
+          err.message?.includes("could not decode result data") ||
+          err.message?.includes('value="0x"')
+        ) {
+          // 初期状態として扱う（エラーを表示しない）
+          totalSupplyNumber = 0;
+        } else {
+          console.warn("getTotalSupply: エラー", err);
+        }
+      }
 
       /**
        * ステップ2: ユーザーが所有する NFT のトークン ID を取得
@@ -126,6 +165,7 @@ export default function MyNFTs() {
             const tokenName = await nftContract.getTokenName(i);
             const rarity = await nftContract.getTokenRarity(i);
             const organizations = await nftContract.getTokenOrganizations(i);
+            const imageType = await nftContract.getTokenImageType(i);
 
             /**
              * ステップ2-4: NFT データを整形
@@ -133,17 +173,25 @@ export default function MyNFTs() {
              * 取得した情報を、フロントエンドで使用しやすい形式に整形します。
              * NFTCard コンポーネントで使用するために、必要なフィールドを設定します。
              */
+            // organizationsが配列でない場合は配列に変換
+            const orgArray = Array.isArray(organizations)
+              ? organizations
+              : organizations
+              ? [organizations]
+              : [];
+
             userNFTs.push({
               id: `nft_${i}`, // 一意の ID（URL パラメータとして使用）
               tokenId: i, // トークン ID（ブロックチェーン上の ID）
               name: tokenName, // NFT の名前
               description: "", // 説明（メタデータから取得する場合は tokenURI を使用）
               rarity: rarity.toLowerCase(), // レアリティ（小文字に変換）
-              organizations: organizations, // 関連組織の配列
+              organizations: orgArray, // 関連組織の配列
               contractAddress: nftContract.target, // コントラクトアドレス
               transactionHash: "", // トランザクションハッシュ（必要に応じて取得）
               metadataURI: tokenURI, // メタデータ URI
               mintedAt: new Date().toISOString().split("T")[0], // 発行日（簡易版、実際はブロックタイムスタンプから取得可能）
+              imageType: Number(imageType), // 画像タイプ
             });
           }
         } catch (err) {
@@ -164,6 +212,7 @@ export default function MyNFTs() {
        * ユーザーが所有する NFT のリストを状態に保存します。
        * これにより、コンポーネントが再レンダリングされ、NFT 一覧が表示されます。
        */
+      console.log("[MyNFTs] 取得したNFT数:", userNFTs.length, userNFTs);
       setNfts(userNFTs);
 
       /**
@@ -207,14 +256,39 @@ export default function MyNFTs() {
    * ウォレットが接続されていない場合は、ローカルストレージから読み込みます。
    */
   useEffect(() => {
-    if (isConnected && isReady && account) {
-      // ブロックチェーンから読み込む
+    console.log("[MyNFTs] useEffect:", {
+      isConnected,
+      account,
+      hasNftContract: !!nftContract,
+    });
+
+    if (isConnected && nftContract && account) {
+      // ブロックチェーンから読み込む（nftContractが存在する場合）
+      console.log("[MyNFTs] ブロックチェーンからNFTを読み込みます");
       loadNFTs();
     } else if (!isConnected) {
       // ウォレット未接続時はローカルストレージから読み込む（フォールバック）
+      console.log(
+        "[MyNFTs] ウォレット未接続のため、ローカルストレージから読み込み"
+      );
       loadNFTsFromStorage();
+    } else {
+      console.log("[MyNFTs] 条件が満たされていません:", {
+        isConnected,
+        hasNftContract: !!nftContract,
+        account: !!account,
+      });
+      // コントラクトが読み込まれていない場合は、ローディング状態を解除
+      if (!nftContract && isConnected) {
+        setLoading(false);
+        setError(
+          "コントラクトが読み込まれていません。しばらく待ってから再度お試しください。"
+        );
+      }
     }
-  }, [isConnected, isReady, account, loadNFTs, loadNFTsFromStorage]);
+    // このコンポーネントではnftContractのみを使用するため、nftContractを直接チェック
+    // isReadyはnftContractとstampManagerContractの両方が必要だが、不要なため使用しない
+  }, [isConnected, account, loadNFTs, loadNFTsFromStorage, nftContract]);
 
   /**
    * ローディング表示

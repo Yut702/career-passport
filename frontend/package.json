@@ -16,8 +16,6 @@
     "test:e2e:headed": "playwright test --headed"
   },
   "dependencies": {
-    "@walletconnect/ethereum-provider": "^2.23.1",
-    "@walletconnect/modal": "^2.7.0",
     "axios": "^1.13.2",
     "ethers": "^6.16.0",
     "react": "^19.2.0",

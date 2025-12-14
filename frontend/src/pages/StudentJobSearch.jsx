@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { useWallet } from "../hooks/useWallet";
+import { useWalletConnect } from "../hooks/useWalletConnect";
 import { matchAPI, jobConditionAPI } from "../lib/api";
 import { formatAddress } from "../lib/utils";
 import { jobCategories, industries } from "../data/jobCategories";
 
 export default function StudentJobSearch() {
-  const { account, isConnected } = useWallet();
+  const { account, isConnected } = useWalletConnect();
   const [myCondition, setMyCondition] = useState(null);
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);

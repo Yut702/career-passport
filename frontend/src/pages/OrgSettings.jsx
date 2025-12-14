@@ -1,7 +1,18 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useWalletConnect } from "../hooks/useWalletConnect";
+import {
+  initializeMockVCForWallet,
+  getOrgVCs,
+  getOrganizationNameFromWallet,
+} from "../lib/vc/org-vc-utils";
 
 export default function OrgSettings() {
+  const { account, isConnected } = useWalletConnect();
+  const [searchParams] = useSearchParams();
+  const isFirstTime = searchParams.get("firstTime") === "true";
+  const navigate = useNavigate();
+
   // 保存されたVCを初期値として読み込む
   const [vcs, setVcs] = useState(() => {
     try {
@@ -13,9 +24,30 @@ export default function OrgSettings() {
     }
   });
   const [loading, setLoading] = useState(false);
-  const [searchParams] = useSearchParams();
-  const isFirstTime = searchParams.get("firstTime") === "true";
-  const navigate = useNavigate();
+
+  // ウォレットアドレスに基づいてモックVCを初期化
+  useEffect(() => {
+    if (isConnected && account) {
+      const existingVCs = getOrgVCs();
+      const hasVCForWallet = existingVCs.some(
+        (vc) => vc.walletAddress === account.toLowerCase()
+      );
+
+      // まだVCが存在しない場合のみ初期化
+      if (!hasVCForWallet) {
+        const mockVC = initializeMockVCForWallet(account);
+        if (mockVC) {
+          // VCが初期化された場合は、状態を更新（次のレンダリングサイクルで）
+          setTimeout(() => {
+            setVcs(getOrgVCs());
+            console.log(
+              `モックVCを初期化しました: ${mockVC.attributes.companyName} (${account})`
+            );
+          }, 0);
+        }
+      }
+    }
+  }, [isConnected, account]);
 
   // モック：実際の実装では、法人登記証明書や税務署からの証明書などのVCを外部から取得
   // 注意：現時点では企業向けVC形式は実証実験レベル
@@ -26,6 +58,20 @@ export default function OrgSettings() {
     // モック：実際の実装では、VC発行者（法務省、税務署、業界団体など）からVCを取得
     // 現時点では実証実験レベルで、一般的にはまだ利用できない
     setTimeout(() => {
+      // ウォレットアドレスから企業名を取得（チェックリストのアドレスの場合）
+      const orgNameFromWallet = account
+        ? getOrganizationNameFromWallet(account)
+        : null;
+
+      // 企業名を決定（ウォレットアドレスから取得できた場合はそれを使用、そうでなければデフォルト）
+      const companyName =
+        orgNameFromWallet ||
+        (vcType === "corporateRegistration"
+          ? "株式会社テック"
+          : vcType === "industryCertification"
+          ? "IT企業認証"
+          : null);
+
       const mockVC = {
         id: `vc_${Date.now()}`,
         type: vcType,
@@ -43,7 +89,7 @@ export default function OrgSettings() {
         attributes:
           vcType === "corporateRegistration"
             ? {
-                companyName: "株式会社テック",
+                companyName: companyName || "株式会社テック",
                 registrationNumber: "1234567890123",
                 establishmentDate: "2020-01-01",
                 address: "東京都...",
@@ -56,7 +102,7 @@ export default function OrgSettings() {
               }
             : vcType === "industryCertification"
             ? {
-                certificationName: "IT企業認証",
+                certificationName: companyName || "IT企業認証",
                 certificationBody: "IT業界団体",
                 validUntil: "2025-12-31",
               }
@@ -71,6 +117,7 @@ export default function OrgSettings() {
                 description: "その他の企業証明書",
               },
         verified: true,
+        walletAddress: account ? account.toLowerCase() : undefined, // ウォレットアドレスを記録
       };
 
       const updatedVCs = [...vcs, mockVC];

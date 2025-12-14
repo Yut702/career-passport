@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useContracts } from "../hooks/useContracts";
-import { useWallet } from "../hooks/useWallet";
+import { useWalletConnect } from "../hooks/useWalletConnect";
 import { storage } from "../lib/storage";
 
 /**
@@ -16,7 +16,7 @@ export default function NFTDetail() {
   // コントラクトインスタンスを取得
   const { nftContract, isReady } = useContracts();
   // ウォレット接続状態を取得
-  const { account, isConnected } = useWallet();
+  const { account, isConnected } = useWalletConnect();
 
   // 状態管理
   const [nft, setNft] = useState(null);
@@ -124,6 +124,7 @@ export default function NFTDetail() {
       const rarity = await nftContract.getTokenRarity(tokenId);
       const organizations = await nftContract.getTokenOrganizations(tokenId);
       const owner = await nftContract.ownerOf(tokenId);
+      const imageType = await nftContract.getTokenImageType(tokenId);
 
       /**
        * ステップ3: NFT データを整形
@@ -143,6 +144,7 @@ export default function NFTDetail() {
         metadataURI: tokenURI, // メタデータ URI
         owner: owner, // 所有者アドレス
         mintedAt: new Date().toISOString().split("T")[0], // 発行日（簡易版、実際はブロックタイムスタンプから取得可能）
+        imageType: Number(imageType), // 画像タイプ
       };
 
       setNft(nftData);

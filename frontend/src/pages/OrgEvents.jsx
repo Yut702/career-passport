@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useWallet } from "../hooks/useWallet";
+import { useWalletConnect } from "../hooks/useWalletConnect";
 import { eventAPI } from "../lib/api";
 
 export default function OrgEvents() {
   const navigate = useNavigate();
-  const { account, isConnected } = useWallet();
+  const { account, isConnected } = useWalletConnect();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [applicationCounts, setApplicationCounts] = useState({});

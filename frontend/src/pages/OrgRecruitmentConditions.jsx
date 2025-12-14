@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useWallet } from "../hooks/useWallet";
+import { useWalletConnect } from "../hooks/useWalletConnect";
 import { jobConditionAPI } from "../lib/api";
 import { jobCategories, industries } from "../data/jobCategories";
 
@@ -19,7 +19,7 @@ const getDefaultConditions = () => ({
 });
 
 export default function OrgRecruitmentConditions() {
-  const { account, isConnected } = useWallet();
+  const { account, isConnected } = useWalletConnect();
   const [formData, setFormData] = useState(getDefaultConditions());
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [loading, setLoading] = useState(true);

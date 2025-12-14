@@ -1,9 +1,11 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
 import ProgressBar from "../components/ProgressBar";
 import StampCard from "../components/StampCard";
+import NFTGoalCard from "../components/NFTGoalCard";
+import StampNotification from "../components/StampNotification";
 import { useContracts } from "../hooks/useContracts";
-import { useWallet } from "../hooks/useWallet";
+import { useWalletConnect } from "../hooks/useWalletConnect";
 import { storage } from "../lib/storage";
 
 function getRpcErrorMessage(err) {
@@ -51,14 +53,16 @@ export default function Home() {
   // コントラクトインスタンスを取得
   const { nftContract, stampManagerContract, isReady } = useContracts();
   // ウォレット接続状態を取得
-  const { account, isConnected } = useWallet();
+  const { account, isConnected } = useWalletConnect();
 
   // 状態管理
-  const [user, setUser] = useState(null);
   const [stamps, setStamps] = useState([]);
   const [nfts, setNfts] = useState([]);
-  const [organizationStats, setOrganizationStats] = useState({});
   const [loading, setLoading] = useState(true);
+  const [nftGoals, setNftGoals] = useState([]);
+  const [showNotification, setShowNotification] = useState(false);
+  const [notificationStamp, setNotificationStamp] = useState(null);
+  const prevStampsRef = useRef([]); // 前回のスタンプ数を記録
 
   /**
    * ローカルストレージからデータを読み込む関数（フォールバック）
@@ -82,11 +86,9 @@ export default function Home() {
        * - スタンプデータ
        * - NFT データ
        */
-      const userData = storage.getUser();
       const stampsData = storage.getStamps();
       const nftsData = storage.getNFTs();
 
-      setUser(userData);
       setStamps(stampsData || []);
       setNfts(nftsData || []);
 
@@ -96,16 +98,17 @@ export default function Home() {
        * ダッシュボードに表示する統計情報を計算します。
        * ブロックチェーンから読み込む場合と同じロジックを使用します。
        */
-      const stats = {};
-      if (stampsData && stampsData.length > 0) {
-        stampsData.forEach((stamp) => {
-          if (!stats[stamp.organization]) {
-            stats[stamp.organization] = 0;
-          }
-          stats[stamp.organization]++;
-        });
-      }
-      setOrganizationStats(stats);
+      // organizationStatsは現在使用していないため、コメントアウト
+      // const stats = {};
+      // if (stampsData && stampsData.length > 0) {
+      //   stampsData.forEach((stamp) => {
+      //     if (!stats[stamp.organization]) {
+      //       stats[stamp.organization] = 0;
+      //     }
+      //     stats[stamp.organization]++;
+      //   });
+      // }
+      // setOrganizationStats(stats);
     } catch (err) {
       /**
        * エラーハンドリング: ローカルストレージからの読み込みに失敗した場合
@@ -117,7 +120,6 @@ export default function Home() {
       // データが存在しない場合はエラーとしない（新規ユーザーの可能性）
       setStamps([]);
       setNfts([]);
-      setOrganizationStats({});
       // エラーを設定しない（空のデータで表示を続ける）
     } finally {
       /**
@@ -160,8 +162,8 @@ export default function Home() {
        * ローカルストレージから取得します。
        * 将来的には、ウォレットアドレスからユーザー情報を取得する設計も可能です。
        */
-      const userData = storage.getUser();
-      setUser(userData);
+      // ユーザー情報は現在使用していないため、コメントアウト
+      // const userData = storage.getUser();
 
       /**
        * ステップ2: ブロックチェーンからスタンプを読み込む
@@ -300,7 +302,13 @@ export default function Home() {
             "型:",
             typeof metadata,
             "配列か:",
-            Array.isArray(metadata)
+            Array.isArray(metadata),
+            "配列の長さ:",
+            Array.isArray(metadata) ? metadata.length : "N/A",
+            "metadata[5]:",
+            Array.isArray(metadata) ? metadata[5] : "N/A",
+            "metadata.imageType:",
+            metadata?.imageType
           );
 
           // Ethers.js v6では構造体が配列として返される場合があるため、両方の形式に対応
@@ -316,9 +324,34 @@ export default function Home() {
           const stampCreatedAt = Array.isArray(metadata)
             ? metadata[3]
             : metadata.createdAt;
+          const stampImageType = Array.isArray(metadata)
+            ? metadata[5] !== undefined
+              ? Number(metadata[5])
+              : 0
+            : metadata.imageType !== undefined
+            ? Number(metadata.imageType)
+            : 0;
 
           // デバッグ: 抽出した値を確認
-          console.log(`[Home] TokenId ${tokenId} のスタンプ名:`, stampName);
+          console.log(`[Home] TokenId ${tokenId} のスタンプ情報:`, {
+            name: stampName,
+            organization: stampOrganization,
+            category: stampCategory,
+            imageType: stampImageType,
+            metadata: metadata,
+            "metadata[1]:": Array.isArray(metadata) ? metadata[1] : "N/A",
+            "metadata.organization:": metadata?.organization,
+          });
+
+          // 企業名が空または「企業A」の場合は警告を表示
+          if (!stampOrganization || stampOrganization === "企業A") {
+            console.warn(
+              `[Home] TokenId ${tokenId} の企業名が正しく取得できていません:`,
+              stampOrganization,
+              "メタデータ:",
+              metadata
+            );
+          }
 
           // 数量分だけスタンプを追加
           for (let j = 0; j < Number(amount); j++) {
@@ -332,6 +365,7 @@ export default function Home() {
               issuedAt: new Date(Number(stampCreatedAt) * 1000)
                 .toISOString()
                 .split("T")[0], // Unix タイムスタンプを日付文字列に変換（秒→ミリ秒→ISO形式→日付部分のみ）
+              imageType: stampImageType,
               amount: Number(amount),
             });
           }
@@ -339,6 +373,23 @@ export default function Home() {
           console.warn(`TokenId ${tokenId}のメタデータ取得に失敗:`, err);
         }
       }
+
+      // スタンプ取得を検知（前回のスタンプ数と比較）
+      const prevStamps = prevStampsRef.current;
+      if (prevStamps.length > 0 && formattedStamps.length > prevStamps.length) {
+        // 新しいスタンプが追加された場合
+        const newStamp = formattedStamps[formattedStamps.length - 1];
+        setNotificationStamp({
+          name: newStamp.name,
+          organization: newStamp.organization,
+        });
+        setShowNotification(true);
+        // 5秒後に自動的に閉じる
+        setTimeout(() => {
+          setShowNotification(false);
+        }, 5000);
+      }
+      prevStampsRef.current = formattedStamps;
 
       setStamps(formattedStamps);
 
@@ -361,8 +412,30 @@ export default function Home() {
        * 2. 各トークン ID について、所有者を確認
        * 3. 現在のユーザーが所有する NFT の詳細情報を取得
        */
-      const totalSupply = await nftContract.getTotalSupply();
-      const totalSupplyNumber = Number(totalSupply);
+      let totalSupply = 0;
+      let totalSupplyNumber = 0;
+      try {
+        // コントラクトが存在するか確認
+        const contractCode = await nftContract.runner.provider.getCode(
+          nftContract.target
+        );
+        if (contractCode !== "0x" && contractCode !== "0x0") {
+          totalSupply = await nftContract.getTotalSupply();
+          totalSupplyNumber = Number(totalSupply);
+        }
+      } catch (err) {
+        // コントラクトが存在しない、またはデータが存在しない場合は0として扱う
+        if (
+          err.code === "BAD_DATA" ||
+          err.message?.includes("could not decode result data") ||
+          err.message?.includes('value="0x"')
+        ) {
+          // 初期状態として扱う（エラーを表示しない）
+          totalSupplyNumber = 0;
+        } else {
+          console.warn("getTotalSupply: エラー", err);
+        }
+      }
       const userNFTs = [];
 
       /**
@@ -401,6 +474,7 @@ export default function Home() {
             const tokenName = await nftContract.getTokenName(i);
             const rarity = await nftContract.getTokenRarity(i);
             const organizations = await nftContract.getTokenOrganizations(i);
+            const imageType = await nftContract.getTokenImageType(i);
 
             /**
              * NFT データを整形
@@ -415,6 +489,7 @@ export default function Home() {
               name: tokenName, // NFT の名前
               rarity: rarity.toLowerCase(), // レアリティ（小文字に変換）
               organizations: organizations, // 関連組織の配列
+              imageType: Number(imageType), // 画像タイプ
             });
           }
         } catch (err) {
@@ -443,11 +518,10 @@ export default function Home() {
       }
 
       /**
-       * ステップ4: 企業別のスタンプ数を集計
+       * ステップ4: 企業別のスタンプ数を集計（NFT目標計算用）
        *
        * ダッシュボードに表示する統計情報を計算します。
        * 各スタンプの organization をキーとして、スタンプ数をカウントします。
-       * これにより、「次の目標」セクションで、どの企業からスタンプを集めるべきかが分かります。
        */
       const stats = {};
       formattedStamps.forEach((stamp) => {
@@ -458,7 +532,51 @@ export default function Home() {
         // スタンプ数をインクリメント
         stats[stamp.organization]++;
       });
-      setOrganizationStats(stats);
+      // organizationStatsは現在使用していないが、将来の拡張用に保持
+      // setOrganizationStats(stats);
+
+      /**
+       * ステップ5: NFT目標を計算
+       *
+       * Common NFTとRare NFTの発行条件を確認し、目標を設定します。
+       */
+      const goals = [];
+
+      // Common NFT目標: 各企業ごとに3スタンプ以上が必要
+      for (const [org, count] of Object.entries(stats)) {
+        const requiredStamps = 3;
+        const remainingStamps = Math.max(0, requiredStamps - count);
+        goals.push({
+          type: "common",
+          organization: org,
+          currentStamps: count,
+          requiredStamps: requiredStamps,
+          remainingStamps: remainingStamps,
+        });
+      }
+
+      // Rare NFT目標: 異業種3種類のカテゴリが必要
+      const categories = new Set();
+      formattedStamps.forEach((stamp) => {
+        if (stamp.category) {
+          categories.add(stamp.category);
+        }
+      });
+      const requiredCategories = 3;
+      const currentCategories = categories.size;
+      const remainingCategories = Math.max(
+        0,
+        requiredCategories - currentCategories
+      );
+      goals.push({
+        type: "rare",
+        currentCategories: currentCategories,
+        requiredCategories: requiredCategories,
+        remainingCategories: remainingCategories,
+        categories: Array.from(categories),
+      });
+
+      setNftGoals(goals);
     } catch (err) {
       /**
        * エラーハンドリング: ブロックチェーンからの読み込みに失敗した場合
@@ -509,40 +627,6 @@ export default function Home() {
   }, [isConnected, isReady, account, loadData, loadDataFromStorage]);
 
   /**
-   * 次の目標を計算する関数
-   *
-   * 企業別のスタンプ数を確認し、3つ未満の企業を探します。
-   * 見つかった最初の企業を「次の目標」として返します。
-   *
-   * NFT 証明書を取得するには、同一企業から3つ以上のスタンプが必要です。
-   * この関数は、ユーザーが次にどの企業からスタンプを集めるべきかを示します。
-   *
-   * @returns {Object|null} 次の目標情報
-   * @returns {string} organization - 企業名
-   * @returns {number} current - 現在のスタンプ数
-   * @returns {number} needed - 必要なスタンプ数（3 - current）
-   * @returns {null} すべての企業で3つ以上のスタンプがある場合
-   */
-  const getNextGoal = () => {
-    // 企業別のスタンプ数をループ処理
-    for (const [org, count] of Object.entries(organizationStats)) {
-      // 3つ未満の企業が見つかった場合
-      if (count < 3) {
-        return {
-          organization: org, // 企業名
-          current: count, // 現在のスタンプ数
-          needed: 3 - count, // 必要なスタンプ数（3つに達するまで）
-        };
-      }
-    }
-    // すべての企業で3つ以上のスタンプがある場合
-    return null;
-  };
-
-  // 次の目標を計算
-  const nextGoal = getNextGoal();
-
-  /**
    * 最近のスタンプを取得
    *
    * スタンプ配列の最後の3つを取得し、新しい順（逆順）に並べ替えます。
@@ -576,14 +660,9 @@ export default function Home() {
         <div className="absolute bottom-0 left-0 w-48 h-48 bg-white opacity-10 rounded-full -ml-24 -mb-24"></div>
 
         <div className="relative z-10">
-          <h1 className="text-4xl font-bold mb-2">
-            {user?.name ||
-              (account
-                ? `${account.slice(0, 6)}...${account.slice(-4)}`
-                : "ゲスト")}
-            さん、こんにちは！
+          <h1 className="text-lg font-bold mb-6 text-white">
+            スタンプとNFT証明書を管理
           </h1>
-          <p className="text-blue-100 mb-6">あなたのキャリアパスポート</p>
           {!isConnected && (
             <div className="mb-4 bg-blue-500/20 backdrop-blur-sm rounded-lg p-3 border border-blue-300/30">
               <div className="text-blue-100 text-sm">
@@ -619,40 +698,22 @@ export default function Home() {
         </div>
       </div>
 
-      {/* 次の目標 */}
-      <div className="bg-white rounded-2xl shadow-lg p-8 border border-gray-100">
-        <div className="flex items-center space-x-3 mb-6">
-          <div className="w-12 h-12 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg">
-            <span className="text-2xl">🎯</span>
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900">次の目標</h2>
-        </div>
-        {nextGoal ? (
-          <div className="space-y-4">
-            <p className="text-gray-700 text-lg">
-              <span className="font-bold text-gray-900">
-                {nextGoal.organization}
-              </span>
-              認定 NFT まで
-              <span className="font-bold text-blue-600 ml-2">
-                あと {nextGoal.needed} スタンプ！
-              </span>
-            </p>
-            <ProgressBar
-              current={nextGoal.current}
-              total={3}
-              label={`${nextGoal.organization} スタンプ`}
-            />
-          </div>
-        ) : (
-          <div className="text-center py-4 text-gray-500">
-            <p className="text-lg">すべての目標を達成しました！🎉</p>
-            <p className="text-sm mt-2">
-              新しいスタンプを集めて、さらに成長しましょう。
-            </p>
-          </div>
-        )}
-      </div>
+      {/* NFT目標表示 */}
+      {isConnected && nftGoals.length > 0 && (
+        <NFTGoalCard goals={nftGoals} onMintClick={null} />
+      )}
+
+      {/* スタンプ取得通知 */}
+      <StampNotification
+        show={showNotification}
+        stampName={notificationStamp?.name}
+        organization={notificationStamp?.organization}
+        onClose={() => setShowNotification(false)}
+        onViewStamps={() => {
+          setShowNotification(false);
+          window.location.href = "/student/mypage";
+        }}
+      />
 
       {/* 最近のスタンプ */}
       <div className="bg-white rounded-2xl shadow-lg p-8 border border-gray-100">

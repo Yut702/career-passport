@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { useWallet } from "../hooks/useWallet";
+import { useWalletConnect } from "../hooks/useWalletConnect";
 import { messageAPI } from "../lib/api";
 import { storage } from "../lib/storage";
 import { formatAddress } from "../lib/utils";
@@ -8,7 +8,7 @@ import { formatAddress } from "../lib/utils";
 export default function StudentMessages() {
   const [searchParams] = useSearchParams();
   const companyId = searchParams.get("companyId");
-  const { account, isConnected } = useWallet();
+  const { account, isConnected } = useWalletConnect();
   const [messages, setMessages] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [selectedCompany, setSelectedCompany] = useState(null);

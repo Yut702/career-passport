@@ -9,7 +9,7 @@ import {
   getIssuanceDate,
 } from "../lib/vc/vc-utils.js";
 import { storage } from "../lib/storage";
-import { useWallet } from "../hooks/useWallet.js";
+import { useWalletConnect } from "../hooks/useWalletConnect.js";
 import { zkpProofAPI } from "../lib/api.js";
 
 // dataディレクトリのVCファイルを動的に読み込む
@@ -46,7 +46,7 @@ const getAvailableVCs = () => {
 };
 
 export default function VCAndZKP() {
-  const { account } = useWallet();
+  const { account } = useWalletConnect();
   const [activeTab, setActiveTab] = useState("vc"); // "vc" or "zkp"
   const [vcs, setVcs] = useState(loadInitialVCs);
   const availableVCs = getAvailableVCs();

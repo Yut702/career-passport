@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { useWallet } from "../hooks/useWallet";
+import { useWalletConnect } from "../hooks/useWalletConnect";
 import { useContracts } from "../hooks/useContracts";
 import { matchAPI, jobConditionAPI } from "../lib/api";
 import { formatAddress } from "../lib/utils";
@@ -12,7 +12,7 @@ export default function OrgMatchedCandidates() {
   const matchId = searchParams.get("matchId");
   const studentAddress = searchParams.get("studentAddress");
   const navigate = useNavigate();
-  const { account, isConnected } = useWallet();
+  const { account, isConnected } = useWalletConnect();
   const { nftContract, stampManagerContract, isReady } = useContracts();
 
   const [match, setMatch] = useState(null);
@@ -26,11 +26,28 @@ export default function OrgMatchedCandidates() {
   const [loadingStamps, setLoadingStamps] = useState(false);
   const [loadingNFTs, setLoadingNFTs] = useState(false);
   const [verifyingZKP, setVerifyingZKP] = useState(false);
+  const [creatingMatch, setCreatingMatch] = useState(false); // マッチング作成中フラグ
 
   // マッチング情報を取得
   useEffect(() => {
+    console.log("[OrgMatchedCandidates] useEffect実行:", {
+      matchId,
+      studentAddress,
+      account,
+      isConnected,
+    });
+
     const loadMatch = async () => {
+      console.log("[OrgMatchedCandidates] loadMatch開始:", {
+        matchId,
+        studentAddress,
+        account,
+      });
+
       if (!matchId && !studentAddress) {
+        console.warn(
+          "[OrgMatchedCandidates] matchIdとstudentAddressの両方がありません"
+        );
         setError("マッチングIDまたは学生アドレスが必要です");
         setLoading(false);
         return;
@@ -48,11 +65,26 @@ export default function OrgMatchedCandidates() {
           }
         } else if (studentAddress) {
           // studentAddressからマッチングを検索（簡易実装）
+          console.log("[OrgMatchedCandidates] マッチング検索開始:", {
+            studentAddress,
+            account,
+          });
           const response = await matchAPI.getOrgMatches(account);
+          console.log("[OrgMatchedCandidates] マッチング検索結果:", {
+            ok: response.ok,
+            matchesCount: response.matches?.length || 0,
+            matches: response.matches,
+          });
           if (response.ok && response.matches) {
             matchData = response.matches.find(
               (m) =>
                 m.studentAddress.toLowerCase() === studentAddress.toLowerCase()
+            );
+            console.log("[OrgMatchedCandidates] 該当マッチング:", matchData);
+          } else {
+            console.warn(
+              "[OrgMatchedCandidates] マッチング検索失敗またはマッチングなし:",
+              response
             );
           }
         }
@@ -64,7 +96,12 @@ export default function OrgMatchedCandidates() {
             setZkpProof({ proofHash: matchData.zkpProofHash });
           }
         } else {
-          setError("マッチング情報が見つかりませんでした");
+          // マッチングが存在しない場合でも、エラーではなく情報として扱う
+          // 学生の情報は引き続き表示できるようにする
+          console.log(
+            "[OrgMatchedCandidates] マッチングが見つかりませんでしたが、学生情報は表示します"
+          );
+          setError(null); // エラーをクリア（学生情報は表示可能）
         }
       } catch (err) {
         console.error("Error loading match:", err);
@@ -75,8 +112,15 @@ export default function OrgMatchedCandidates() {
     };
 
     if (isConnected && account) {
+      console.log(
+        "[OrgMatchedCandidates] 条件満たしたためloadMatchを実行します"
+      );
       loadMatch();
     } else {
+      console.warn("[OrgMatchedCandidates] 条件未満足:", {
+        isConnected,
+        account,
+      });
       setLoading(false);
     }
   }, [matchId, studentAddress, account, isConnected]);
@@ -133,16 +177,37 @@ export default function OrgMatchedCandidates() {
             const metadata = await stampManagerContract.getStampMetadata(
               tokenId
             );
+            const stampName = Array.isArray(metadata)
+              ? metadata[0]
+              : metadata.name;
+            const stampOrganization = Array.isArray(metadata)
+              ? metadata[1]
+              : metadata.organization;
+            const stampCategory = Array.isArray(metadata)
+              ? metadata[2]
+              : metadata.category;
+            const stampCreatedAt = Array.isArray(metadata)
+              ? metadata[3]
+              : metadata.createdAt;
+            const stampImageType = Array.isArray(metadata)
+              ? metadata[5] !== undefined
+                ? Number(metadata[5])
+                : 0
+              : metadata.imageType !== undefined
+              ? Number(metadata.imageType)
+              : 0;
+
             for (let j = 0; j < Number(amount); j++) {
               formattedStamps.push({
                 id: `${tokenId}-${j}`,
                 tokenId: tokenId.toString(),
-                name: metadata.name,
-                organization: metadata.organization,
-                category: metadata.category,
-                issuedAt: new Date(Number(metadata.createdAt) * 1000)
+                name: stampName,
+                organization: stampOrganization,
+                category: stampCategory,
+                issuedAt: new Date(Number(stampCreatedAt) * 1000)
                   .toISOString()
                   .split("T")[0],
+                imageType: stampImageType,
               });
             }
           } catch (err) {
@@ -180,8 +245,24 @@ export default function OrgMatchedCandidates() {
           return;
         }
 
-        const totalSupply = await nftContract.getTotalSupply();
-        const totalSupplyNumber = Number(totalSupply);
+        let totalSupply = 0;
+        let totalSupplyNumber = 0;
+        try {
+          totalSupply = await nftContract.getTotalSupply();
+          totalSupplyNumber = Number(totalSupply);
+        } catch (err) {
+          // コントラクトが存在しない、またはデータが存在しない場合は0として扱う
+          if (
+            err.code === "BAD_DATA" ||
+            err.message?.includes("could not decode result data") ||
+            err.message?.includes('value="0x"')
+          ) {
+            // 初期状態として扱う（エラーを表示しない）
+            totalSupplyNumber = 0;
+          } else {
+            console.warn("getTotalSupply: エラー", err);
+          }
+        }
         const userNFTs = [];
 
         for (let i = 0; i < totalSupplyNumber; i++) {
@@ -271,8 +352,54 @@ export default function OrgMatchedCandidates() {
   };
 
   const handleContact = () => {
-    if (match?.studentAddress) {
-      navigate(`/org/messages?candidateId=${match.studentAddress}`);
+    const targetAddress = match?.studentAddress || studentAddress;
+    if (targetAddress) {
+      navigate(`/org/messages?candidateId=${targetAddress}`);
+    }
+  };
+
+  /**
+   * マッチングを作成
+   */
+  const handleCreateMatch = async () => {
+    if (!studentAddress || !account) {
+      setError("学生アドレスまたは企業アドレスが設定されていません");
+      return;
+    }
+
+    if (
+      !window.confirm(
+        "この候補者とマッチングを作成しますか？\nマッチング作成後、自動的にメッセージが送信されます。"
+      )
+    ) {
+      return;
+    }
+
+    setCreatingMatch(true);
+    setError(null);
+
+    try {
+      const response = await matchAPI.create(studentAddress, account);
+      if (response.ok && response.match) {
+        setMatch(response.match);
+        alert("マッチングを作成しました！");
+        // ページをリロードして最新の情報を取得
+        window.location.reload();
+      } else {
+        throw new Error(response.error || "マッチングの作成に失敗しました");
+      }
+    } catch (err) {
+      console.error("Error creating match:", err);
+      if (
+        err.message?.includes("already exists") ||
+        err.message?.includes("409")
+      ) {
+        setError("この候補者とは既にマッチングが存在します");
+      } else {
+        setError("マッチングの作成に失敗しました: " + err.message);
+      }
+    } finally {
+      setCreatingMatch(false);
     }
   };
 
@@ -296,21 +423,19 @@ export default function OrgMatchedCandidates() {
     );
   }
 
-  if (error && !match) {
+  // マッチングが存在しない場合でも、学生アドレスがあれば情報を表示
+  const displayStudentAddress = match?.studentAddress || studentAddress;
+
+  // 学生アドレスがない場合はエラー表示
+  if (!displayStudentAddress) {
     return (
       <div className="text-center py-12">
         <div className="bg-red-50 border-2 border-red-200 rounded-xl p-6 max-w-md mx-auto">
           <p className="text-red-800 font-semibold mb-2">エラー</p>
-          <p className="text-red-700 text-sm">{error}</p>
+          <p className="text-red-700 text-sm">
+            学生アドレスが指定されていません
+          </p>
         </div>
-      </div>
-    );
-  }
-
-  if (!match) {
-    return (
-      <div className="text-center py-12">
-        <p className="text-gray-500">人材情報が見つかりません</p>
       </div>
     );
   }
@@ -325,19 +450,51 @@ export default function OrgMatchedCandidates() {
         <span>人材探しに戻る</span>
       </button>
 
+      {/* マッチングが存在しない場合の通知 */}
+      {!match && studentAddress && (
+        <div className="mb-6 bg-yellow-50 border-2 border-yellow-300 rounded-xl p-6">
+          <div className="flex items-start space-x-3">
+            <span className="text-2xl">ℹ️</span>
+            <div className="flex-1">
+              <h3 className="font-semibold text-yellow-900 mb-2">
+                マッチングがまだ作成されていません
+              </h3>
+              <p className="text-sm text-yellow-800 mb-4">
+                この候補者とマッチングを作成すると、メッセージのやり取りが可能になります。
+              </p>
+              <button
+                onClick={handleCreateMatch}
+                disabled={creatingMatch || !isConnected}
+                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {creatingMatch ? "作成中..." : "🤝 マッチングを作成"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* エラーメッセージ表示 */}
+      {error && (
+        <div className="mb-6 bg-red-50 border-2 border-red-200 rounded-xl p-4">
+          <p className="text-red-800 font-semibold mb-1">エラー</p>
+          <p className="text-red-700 text-sm">{error}</p>
+        </div>
+      )}
+
       <div className="bg-white rounded-2xl shadow-lg p-8 border border-gray-100">
         <div className="flex items-start justify-between mb-8">
           <div>
             <h1 className="text-4xl font-bold text-gray-900 mb-2">
-              {formatAddress(match.studentAddress)}
+              {formatAddress(displayStudentAddress)}
             </h1>
             <p className="text-gray-600 text-lg mb-1 font-mono">
-              {match.studentAddress}
+              {displayStudentAddress}
             </p>
-            {match.zkpProofHash && (
+            {match?.zkpProofHash && (
               <p className="text-sm text-indigo-600 mt-2">🔐 ZKP証明済み</p>
             )}
-            {match.matchedAt && (
+            {match?.matchedAt && (
               <p className="text-gray-500 text-sm">
                 マッチング日時:{" "}
                 {new Date(match.matchedAt).toLocaleString("ja-JP")}
@@ -521,7 +678,7 @@ export default function OrgMatchedCandidates() {
           </div>
 
           {/* ZKP証明 */}
-          {match.zkpProofHash && (
+          {match?.zkpProofHash && (
             <div>
               <h3 className="text-lg font-bold text-gray-900 mb-3">ZKP証明</h3>
               <div className="bg-indigo-50 border-2 border-indigo-300 rounded-xl p-4">
@@ -611,12 +768,22 @@ export default function OrgMatchedCandidates() {
             >
               戻る
             </button>
-            <button
-              onClick={handleContact}
-              className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
-            >
-              メッセージを送る
-            </button>
+            {match ? (
+              <button
+                onClick={handleContact}
+                className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
+              >
+                メッセージを送る
+              </button>
+            ) : (
+              <button
+                onClick={handleCreateMatch}
+                disabled={creatingMatch || !isConnected}
+                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {creatingMatch ? "作成中..." : "🤝 マッチングを作成"}
+              </button>
+            )}
           </div>
         </div>
       </div>

@@ -157,6 +157,28 @@ const tables = [
       },
     ],
   },
+  {
+    TableName: "NonFungibleCareerNFTApplications",
+    KeySchema: [{ AttributeName: "applicationId", KeyType: "HASH" }],
+    AttributeDefinitions: [
+      { AttributeName: "applicationId", AttributeType: "S" },
+      { AttributeName: "userWalletAddress", AttributeType: "S" },
+      { AttributeName: "orgWalletAddress", AttributeType: "S" },
+    ],
+    BillingMode: "PAY_PER_REQUEST",
+    GlobalSecondaryIndexes: [
+      {
+        IndexName: "UserIndex",
+        KeySchema: [{ AttributeName: "userWalletAddress", KeyType: "HASH" }],
+        Projection: { ProjectionType: "ALL" },
+      },
+      {
+        IndexName: "OrgIndex",
+        KeySchema: [{ AttributeName: "orgWalletAddress", KeyType: "HASH" }],
+        Projection: { ProjectionType: "ALL" },
+      },
+    ],
+  },
 ];
 
 async function createTables() {

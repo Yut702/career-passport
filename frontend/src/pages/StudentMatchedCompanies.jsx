@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { useWallet } from "../hooks/useWallet";
+import { useWalletConnect } from "../hooks/useWalletConnect";
 import { matchAPI, jobConditionAPI } from "../lib/api";
 import { jobCategories, industries } from "../data/jobCategories";
 
@@ -8,7 +8,7 @@ export default function StudentMatchedCompanies() {
   const [searchParams] = useSearchParams();
   const orgAddress = searchParams.get("orgAddress");
   const navigate = useNavigate();
-  const { account, isConnected } = useWallet();
+  const { account, isConnected } = useWalletConnect();
   const [companyCondition, setCompanyCondition] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
