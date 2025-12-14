@@ -16,7 +16,8 @@ if (process.env.DYNAMODB_ENDPOINT) {
 }
 
 const dynamoDB = new AWS.DynamoDB.DocumentClient(config);
-const TABLE = "NonFungibleCareerZKPProofs";
+const TABLE =
+  process.env.DYNAMODB_TABLE_ZKP_PROOFS || "NonFungibleCareerZKPProofs";
 const DATA_DIR = path.join(__dirname, "../../../frontend/src/data/zkp-proofs");
 
 // dataフォルダが存在しない場合は作成

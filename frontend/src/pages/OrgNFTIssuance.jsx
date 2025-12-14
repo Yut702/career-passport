@@ -256,7 +256,7 @@ export default function OrgNFTIssuance() {
         } else {
           // 参加企業NFTを所有しているかチェック（PoC: モックで常にtrue）
           try {
-            hasPermission = await stampManagerContract.hasPlatformNFT(account);
+            hasPermission = await stampManagerContract.hasPlatformNft(account);
           } catch (platformNFTError) {
             console.warn("Error checking platform NFT:", platformNFTError);
             // PoCのため、エラーが発生しても発行可能とする（モック実装）
@@ -282,8 +282,8 @@ export default function OrgNFTIssuance() {
         formData.tokenURI || `https://example.com/metadata/${Date.now()}.json`;
 
       // NFT証明書を発行（StampManager経由）
-      // mintNFT(address to, string memory uri, string memory name, string memory rarity, string memory organization)
-      const tx = await stampManagerContract.mintNFT(
+      // mintNft(address to, string memory uri, string memory name, string memory rarity, string memory organization)
+      const tx = await stampManagerContract.mintNft(
         formData.userAddress,
         tokenURI,
         formData.nftName || `${formData.organization} 優秀な成績証明書`,

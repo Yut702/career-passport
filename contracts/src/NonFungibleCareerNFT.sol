@@ -10,6 +10,7 @@ contract NonFungibleCareerNFT is ERC721, Ownable {
     mapping(uint256 => string) private _tokenNames;     // トークン名
     mapping(uint256 => string) private _tokenRarities;  // レアリティ（例: "Common", "Rare", "Epic"）
     mapping(uint256 => string[]) private _tokenOrganizations; // 関連組織の配列
+    mapping(uint256 => uint256[]) private _exchangedStampTokenIds; // 交換に使用したスタンプのtokenId配列
 
     constructor() ERC721("NonFungibleCareerNFT", "NFCNFT") Ownable(msg.sender) {}
     // NFTの名前とシンボルを設定し、デプロイしたアドレスを所有者に設定
@@ -30,6 +31,24 @@ contract NonFungibleCareerNFT is ERC721, Ownable {
         _tokenRarities[tokenId] = rarity;
         _tokenOrganizations[tokenId] = organizations;
         return tokenId;
+    }
+
+    /**
+     * @dev NFT発行時に交換に使用したスタンプ情報を設定（所有者のみ実行可能）
+     * @param tokenId NFTのトークンID
+     * @param stampTokenIds 交換に使用したスタンプのtokenId配列
+     */
+    function setExchangedStampTokenIds(uint256 tokenId, uint256[] memory stampTokenIds) public onlyOwner {
+        _exchangedStampTokenIds[tokenId] = stampTokenIds;
+    }
+
+    /**
+     * @dev 交換に使用したスタンプのtokenId配列を取得
+     * @param tokenId NFTのトークンID
+     * @return stampTokenIds 交換に使用したスタンプのtokenId配列
+     */
+    function getExchangedStampTokenIds(uint256 tokenId) public view returns (uint256[] memory) {
+        return _exchangedStampTokenIds[tokenId];
     }
 
     function tokenURI(uint256 tokenId) public view override returns (string memory) {

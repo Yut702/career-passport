@@ -362,6 +362,10 @@ export default function OrgMatchedCandidates() {
                     <span className="text-gray-900">
                       {studentCondition.jobType === "internship"
                         ? "インターンシップ"
+                        : studentCondition.jobType === "event"
+                        ? "イベント"
+                        : studentCondition.jobType === "lecture"
+                        ? "講座"
                         : studentCondition.jobType === "fulltime"
                         ? "正社員"
                         : "未設定"}

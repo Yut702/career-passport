@@ -91,7 +91,7 @@ export default function OrgStampIssuance() {
         } else {
           // 参加企業NFTを所有しているかチェック（PoC: モックで常にtrue）
           try {
-            hasPermission = await stampManagerContract.hasPlatformNFT(account);
+            hasPermission = await stampManagerContract.hasPlatformNft(account);
           } catch (platformNFTError) {
             console.warn("Error checking platform NFT:", platformNFTError);
             // PoCのため、エラーが発生しても発行可能とする（モック実装）

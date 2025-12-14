@@ -289,6 +289,38 @@ export default function StudentJobConditions() {
                 <input
                   type="radio"
                   name="jobType"
+                  value="event"
+                  checked={formData.jobType === "event"}
+                  onChange={handleChange}
+                  className="mr-3"
+                  required
+                />
+                <div>
+                  <div className="font-medium">イベント</div>
+                  <div className="text-sm text-gray-500">イベント参加</div>
+                </div>
+              </label>
+              <label className="flex items-center p-4 border-2 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">
+                <input
+                  type="radio"
+                  name="jobType"
+                  value="lecture"
+                  checked={formData.jobType === "lecture"}
+                  onChange={handleChange}
+                  className="mr-3"
+                  required
+                />
+                <div>
+                  <div className="font-medium">講座</div>
+                  <div className="text-sm text-gray-500">
+                    学習・研修プログラム
+                  </div>
+                </div>
+              </label>
+              <label className="flex items-center p-4 border-2 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">
+                <input
+                  type="radio"
+                  name="jobType"
                   value="fulltime"
                   checked={formData.jobType === "fulltime"}
                   onChange={handleChange}

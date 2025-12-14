@@ -206,6 +206,23 @@ contract CareerStampSFT is ERC1155, Ownable {
     }
 
     /**
+     * @dev スタンプをバーン（所有者または許可されたアドレスのみ実行可能）
+     * @param from バーンするユーザーのアドレス
+     * @param ids バーンするスタンプのtokenId配列
+     * @param amounts 各tokenIdのバーン数量
+     */
+    function burn(address from, uint256[] memory ids, uint256[] memory amounts) public {
+        require(
+            msg.sender == owner() || msg.sender == from,
+            "Not authorized to burn"
+        );
+        require(ids.length == amounts.length, "Arrays length mismatch");
+        
+        // バーンを実行（_update内で組織別スタンプ数も更新される）
+        _update(from, address(0), ids, amounts);
+    }
+
+    /**
      * @dev 譲渡を制限（スタンプは譲渡不可、バーンは許可）
      */
     function _update(

@@ -131,6 +131,10 @@ export default function OrgCandidateSearch() {
               <span className="text-gray-900">
                 {myCondition.jobType === "internship"
                   ? "インターンシップ"
+                  : myCondition.jobType === "event"
+                  ? "イベント"
+                  : myCondition.jobType === "lecture"
+                  ? "講座"
                   : myCondition.jobType === "fulltime"
                   ? "正社員"
                   : "未設定"}

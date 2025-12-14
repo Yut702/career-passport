@@ -42,7 +42,7 @@ const getABI = (abi) => {
  *   // コントラクトを使用
  *   // スタンプはStampManager経由でアクセス
  *   const handleMint = async () => {
- *     await stampManagerContract.mintNFT(...);
+ *     await stampManagerContract.mintNft(...);
  *   };
  * }
  * ```

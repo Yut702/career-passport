@@ -61,6 +61,8 @@ export default function MyPage() {
   const [nftEligibleOrgs, setNftEligibleOrgs] = useState([]); // NFT発行可能な組織リスト
   const [showNotification, setShowNotification] = useState(false); // 通知表示フラグ
   const [notificationOrg, setNotificationOrg] = useState(null); // 通知対象の組織
+  const [canMintRareNft, setCanMintRareNft] = useState(false); // 異業種3種類でレアNFT発行可能かどうか
+  const [differentCategoryCount, setDifferentCategoryCount] = useState(0); // 異なるカテゴリの数
 
   /**
    * ブロックチェーンからスタンプを読み込む（SFTベース）
@@ -494,6 +496,43 @@ export default function MyPage() {
   }, [organizationGroups, stampManagerContract, account]);
 
   /**
+   * 異業種3種類のスタンプでレアNFT発行可能性をチェック
+   */
+  useEffect(() => {
+    const checkRareNFTEligibility = async () => {
+      if (!stampManagerContract || !account) return;
+
+      try {
+        const [canMint, categoryCount] =
+          await stampManagerContract.canMintRareNftWithDifferentCategories(
+            account
+          );
+        setCanMintRareNft(canMint);
+        setDifferentCategoryCount(Number(categoryCount));
+      } catch (err) {
+        // execution revertedエラーは無視（コントラクトが存在しない場合など）
+        if (err.message && err.message.includes("execution reverted")) {
+          console.warn(
+            "コントラクト呼び出しエラー: コントラクトが存在しないか、関数が実装されていません"
+          );
+        } else {
+          console.error("Error checking rare NFT eligibility:", err);
+        }
+        setCanMintRareNft(false);
+        setDifferentCategoryCount(0);
+      }
+    };
+
+    if (
+      Object.keys(organizationGroups).length > 0 &&
+      stampManagerContract &&
+      account
+    ) {
+      checkRareNFTEligibility();
+    }
+  }, [organizationGroups, stampManagerContract, account]);
+
+  /**
    * スタンプ発行イベントを監視し、条件を満たしたら自動的にNFTを発行
    */
   useEffect(() => {
@@ -617,9 +656,9 @@ export default function MyPage() {
                 setError(null);
 
                 // NFT を発行（StampManager経由）
-                // mintNFT(address to, string memory uri, string memory name, string memory rarity, string memory organization)
+                // mintNft(address to, string memory uri, string memory name, string memory rarity, string memory organization)
                 // 自動発行であることが分かる名称を使用（企業側で発行するNFT証明書とは区別）
-                const tx = await stampManagerContract.mintNFT(
+                const tx = await stampManagerContract.mintNft(
                   account,
                   `https://example.com/metadata/${Date.now()}.json`,
                   `${organization} スタンプコレクション証明書`,
@@ -714,6 +753,72 @@ export default function MyPage() {
   };
 
   /**
+   * 異業種3種類のスタンプでレアNFTを発行する関数
+   */
+  const handleMintRareNFT = async () => {
+    if (!nftContract || !account) return;
+
+    setMinting(true);
+    setError(null);
+
+    try {
+      // 異業種3種類のスタンプでレアNFTを発行
+      // mintRareNftWithDifferentCategories(address to, string memory uri, string memory name, string memory rarity, string[] memory organizations)
+      const categories = Object.keys(organizationGroups).slice(0, 3); // 最初の3つの組織を使用（実際には異なるカテゴリのスタンプが使用される）
+      const tx = await stampManagerContract.mintRareNftWithDifferentCategories(
+        account,
+        `https://example.com/metadata/rare-${Date.now()}.json`,
+        "異業種コレクション証明書",
+        "Rare",
+        categories
+      );
+
+      // トランザクションの確認を待つ
+      await tx.wait();
+
+      // データを再読み込み
+      await Promise.all([loadStamps(), loadNFTs()]);
+
+      // 成功メッセージとNFT証明書ページへのリンク
+      const goToNFTs = window.confirm(
+        "レアNFTが正常に発行されました！\nNFT証明書ページで確認しますか？"
+      );
+      if (goToNFTs) {
+        navigate("/student/nfts");
+      }
+
+      // 異業種3種類の条件を再チェック
+      setTimeout(async () => {
+        if (stampManagerContract && account) {
+          try {
+            const [canMint, categoryCount] =
+              await stampManagerContract.canMintRareNftWithDifferentCategories(
+                account
+              );
+            setCanMintRareNft(canMint);
+            setDifferentCategoryCount(Number(categoryCount));
+          } catch (err) {
+            console.error("Error checking rare NFT eligibility:", err);
+          }
+        }
+      }, 1000);
+    } catch (error) {
+      console.error("Error minting Rare NFT:", error);
+
+      let errorMessage = "レアNFT発行に失敗しました";
+      if (error.reason) {
+        errorMessage = error.reason;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      setError(errorMessage);
+    } finally {
+      setMinting(false);
+    }
+  };
+
+  /**
    * NFTを発行する関数
    *
    * @param {string} organization - 組織名
@@ -727,9 +832,9 @@ export default function MyPage() {
 
     try {
       // NFT を発行（StampManager経由）
-      // mintNFT(address to, string memory uri, string memory name, string memory rarity, string memory organization)
+      // mintNft(address to, string memory uri, string memory name, string memory rarity, string memory organization)
       // 自動発行であることが分かる名称を使用（企業側で発行するNFT証明書とは区別）
-      const tx = await stampManagerContract.mintNFT(
+      const tx = await stampManagerContract.mintNft(
         account,
         `https://example.com/metadata/${Date.now()}.json`,
         `${organization} スタンプコレクション証明書`,
@@ -877,6 +982,35 @@ export default function MyPage() {
                 className="bg-green-600 text-white px-4 py-3 rounded-xl font-bold hover:bg-green-700 transition-colors"
               >
                 後で
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 異業種3種類でレアNFT発行可能通知 */}
+      {canMintRareNft && (
+        <div className="bg-gradient-to-r from-purple-400 to-pink-500 text-white rounded-2xl shadow-2xl p-6 border-2 border-purple-300">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="text-5xl">✨</div>
+              <div>
+                <h3 className="text-2xl font-bold mb-1">
+                  レアNFT証明書が発行可能になりました！
+                </h3>
+                <p className="text-purple-50">
+                  異業種{differentCategoryCount}種類のスタンプを集めました。
+                  レアNFT証明書に交換できます。
+                </p>
+              </div>
+            </div>
+            <div className="flex space-x-3">
+              <button
+                onClick={handleMintRareNFT}
+                disabled={minting}
+                className="bg-white text-purple-600 px-6 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {minting ? "発行中..." : "✨ 今すぐ発行"}
               </button>
             </div>
           </div>

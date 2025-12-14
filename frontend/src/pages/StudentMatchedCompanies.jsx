@@ -145,6 +145,10 @@ export default function StudentMatchedCompanies() {
               <span className="text-gray-900">
                 {companyCondition.jobType === "internship"
                   ? "インターンシップ"
+                  : companyCondition.jobType === "event"
+                  ? "イベント"
+                  : companyCondition.jobType === "lecture"
+                  ? "講座"
                   : companyCondition.jobType === "fulltime"
                   ? "正社員"
                   : "未設定"}

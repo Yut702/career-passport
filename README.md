@@ -188,6 +188,7 @@ DYNAMODB_TABLE_EVENT_APPLICATIONS=NonFungibleCareerEventApplications
 DYNAMODB_TABLE_MESSAGES=NonFungibleCareerMessages
 DYNAMODB_TABLE_MATCHES=NonFungibleCareerMatches
 DYNAMODB_TABLE_EVENTS=NonFungibleCareerEvents
+DYNAMODB_TABLE_ZKP_PROOFS=NonFungibleCareerZKPProofs
 
 # JWT 設定
 JWT_SECRET=your-secret-key-change-in-production
@@ -216,16 +217,25 @@ npm run dev
 ```bash
 cd contracts
 
-# Anvil を起動（このターミナルは起動したままにしておく）
-anvil
+# Anvil を状態保存付きで起動（推奨）
+bash scripts/start-anvil.sh
 ```
+
+または、手動で起動する場合：
+
+```bash
+cd contracts
+anvil --state anvil-state.json
+```
+
+**確認**: `Listening on 127.0.0.1:8545` と表示されれば成功です。
 
 **ターミナル 3**: 新しいターミナルを開いて実行
 
 ```bash
 cd contracts
 
-# コントラクトをデプロイ
+# コントラクトをデプロイ（初回のみ）
 bash scripts/deploy-all.sh
 ```
 
@@ -239,6 +249,12 @@ bash scripts/deploy-all.sh
 6. バックエンドデータベーステーブルの作成（オプション）
 
 **確認**: `frontend/.env.local` ファイルが作成されていることを確認してください。
+
+**重要**:
+
+- 初回のみコントラクトをデプロイする必要があります
+- `--state` オプションを使用しているため、Anvil を再起動しても状態が保持されます
+- 状態をリセットしたい場合は `bash scripts/reset-anvil.sh` を実行してください
 
 ### ステップ 6: MetaMask の設定
 
@@ -278,24 +294,34 @@ npm run dev
    - イベント応募機能
    - メッセージ機能
 
-### 起動確認チェックリスト
+### 初回セットアップ完了チェックリスト
 
-すべてのサービスが正常に起動しているか確認してください：
+すべてのステップが完了しているか確認してください：
 
-- ✅ **DynamoDB Local**: `docker ps` で `dynamodb-local` コンテナが起動中
-- ✅ **バックエンド API**: `http://localhost:3000` にアクセス可能（またはターミナルに `Backend running on 3000` と表示）
-- ✅ **Anvil**: ターミナルに `Listening on 127.0.0.1:8545` と表示
-- ✅ **フロントエンド**: `http://localhost:5173` にアクセス可能
+- ✅ **Foundry**: `forge --version`、`anvil --version` が正常に動作
+- ✅ **コントラクト**: `forge build` が成功し、`contracts/lib/` に依存関係がインストールされている
+- ✅ **バックエンド**: `.env` ファイルが作成され、`npm run create-api-tables` でテーブルが作成済み
+- ✅ **Anvil**: 状態保存付きで起動し、`contracts/anvil-state.json` が作成されている
+- ✅ **コントラクト**: `contracts/deployed.json` にアドレスが記録されている
+- ✅ **フロントエンド**: `frontend/.env.local` ファイルが作成されている
+- ✅ **MetaMask**: ローカルネットワーク（Anvil）が追加されている
+
+**次のステップ**: セットアップが完了したら、「[日常的な起動手順](#日常的な起動手順)」を参照してアプリを起動してください。
 
 ---
 
-## 日常的なスタートアップ手順
+## 日常的な起動手順
 
 PC を再起動した後や、一度セットアップを完了した環境でアプリを起動する場合の手順です。
 
-### 必要なサービスを起動
+### 前提条件
 
-以下の順序で 4 つのターミナルを開いて、それぞれのサービスを起動します：
+- ✅ 初期セットアップが完了していること
+- ✅ コントラクトがデプロイ済みであること（初回のみ必要）
+
+### 起動手順
+
+以下の順序で **3〜4 つのターミナル**を開いて、それぞれのサービスを起動します：
 
 #### ターミナル 1: DynamoDB Local とバックエンド API
 
@@ -310,27 +336,60 @@ sleep 3
 npm run dev
 ```
 
-**確認**: `Backend running on 3000` と表示されれば成功です。
+**確認**:
+
+- `Backend running on 3000` と表示されれば成功です
+- または `docker ps` で `dynamodb-local` コンテナが起動中であることを確認
+
+**注意**:
+
+- DynamoDB Local のデータは Docker ボリュームに保存されるため、コンテナを削除しない限りデータは保持されます
+- テーブルは既に作成されているため、再作成の必要はありません
 
 #### ターミナル 2: ローカルブロックチェーン（Anvil）
 
+**推奨方法（状態を保存）**:
+
 ```bash
 cd contracts
-anvil
+bash scripts/start-anvil.sh
 ```
 
 **確認**: `Listening on 127.0.0.1:8545` と表示されれば成功です。
 
-**注意**: Anvil を再起動すると、以前のブロックチェーンの状態は失われます。コントラクトを再デプロイする必要があります。
+**状態管理について**:
 
-#### ターミナル 3: コントラクトの再デプロイ（Anvil 再起動時のみ）
+- `--state` オプションを使用しているため、Anvil を再起動しても以前の状態（コントラクト、トランザクション、残高）が自動的に復元されます
+- 状態ファイル（`anvil-state.json`）が存在する場合、以前の状態が復元されます
+- 状態ファイルが存在しない場合（初回起動時など）、新しい状態で開始されます
 
-Anvil を再起動した場合のみ、このステップを実行してください：
+**状態をリセットする場合**:
+
+```bash
+cd contracts
+bash scripts/reset-anvil.sh
+```
+
+#### ターミナル 3: コントラクトのデプロイ（初回のみ、または状態リセット時）
+
+**⚠️ このステップは初回のみ、または Anvil の状態をリセットした場合のみ必要です**
+
+状態ファイル（`anvil-state.json`）が存在し、以前の状態が復元されている場合は、このステップをスキップしてください。
 
 ```bash
 cd contracts
 bash scripts/deploy-all.sh
 ```
+
+**確認**:
+
+- `frontend/.env.local` ファイルが存在することを確認
+- デプロイスクリプトが正常に完了したことを確認
+
+**注意**:
+
+- 状態ファイルが存在する場合、デプロイスクリプトは警告を表示します
+- 既存のコントラクトアドレスが上書きされる可能性があります
 
 #### ターミナル 4: フロントエンド
 
@@ -341,14 +400,29 @@ npm run dev
 
 **確認**: `Local: http://localhost:5173` と表示されれば成功です。
 
-### クイックスタートスクリプト（オプション）
+### 起動確認チェックリスト
 
-複数のサービスを一度に起動したい場合は、以下のスクリプトを使用できます：
+すべてのサービスが正常に起動しているか確認してください：
 
-```bash
-# バックエンドのセットアップスクリプトを実行
-bash scripts/setup-backend.sh
-```
+- ✅ **DynamoDB Local**: `docker ps` で `dynamodb-local` コンテナが起動中
+- ✅ **バックエンド API**: `http://localhost:3000` にアクセス可能（またはターミナルに `Backend running on 3000` と表示）
+- ✅ **Anvil**: ターミナルに `Listening on 127.0.0.1:8545` と表示
+- ✅ **フロントエンド**: `http://localhost:5173` にアクセス可能
+- ✅ **コントラクト**: `contracts/deployed.json` にアドレスが記録されている（初回デプロイ後）
+
+### よくある質問
+
+**Q: 毎回コントラクトをデプロイする必要がありますか？**
+
+A: いいえ。`--state` オプションを使用しているため、Anvil を再起動しても状態が保持されます。初回のみ、または状態をリセットした場合のみデプロイが必要です。
+
+**Q: 状態をリセットしたい場合はどうすればいいですか？**
+
+A: `cd contracts && bash scripts/reset-anvil.sh` を実行してください。その後、コントラクトを再デプロイする必要があります。
+
+**Q: DynamoDB のデータが消えた場合は？**
+
+A: `docker compose down -v` を実行していない限り、データは保持されます。データをリセットしたい場合は、`cd backend && docker compose down -v` を実行してください。
 
 ---
 
@@ -643,6 +717,417 @@ StampManager
     │
 CareerStampSFT (ERC1155)
 ```
+
+---
+
+## NFT/SFT の保管場所と画像設計
+
+### 概要
+
+このアプリケーションでは、**SFT（Semi-Fungible Token）**と**NFT（Non-Fungible Token）**のデータをブロックチェーン上に保存しています。現在は PoC（Proof of Concept）段階のため、画像はエモジとグラデーションで表示していますが、将来的には IPFS などの分散ストレージを使用して画像を保存する設計となっています。
+
+### データの保管場所
+
+#### 1. SFT（スタンプ）の保管場所
+
+**ブロックチェーン上（Anvil）**:
+
+- **コントラクト**: `CareerStampSFT`（ERC1155 準拠）
+- **メタデータ**: `StampMetadata`構造体としてブロックチェーン上に保存
+  - `name`: スタンプ名
+  - `organization`: 発行企業名
+  - `category`: カテゴリ（finance, marketing, business, programming, design）
+  - `createdAt`: 作成日時（Unix タイムスタンプ）
+- **URI**: `uri(uint256 tokenId)`関数でメタデータ URI を返す
+  - 現在の実装: `https://api.career-passport.com/stamps/{tokenId}.json`（簡易的な URI 生成）
+  - 将来的には IPFS URI を返す設計
+
+**フロントエンド表示**:
+
+- カテゴリ別のエモジで表示（💰、📊、💼、💻、🎨）
+- カテゴリに応じたグラデーション背景
+- 実際の画像ファイルは使用していない（PoC 段階）
+
+#### 2. NFT（証明書）の保管場所
+
+**ブロックチェーン上（Anvil）**:
+
+- **コントラクト**: `NonFungibleCareerNFT`（ERC721 準拠）
+- **メタデータ**: コントラクト内のマッピングに保存
+  - `_tokenUrIs`: メタデータ URI（IPFS や HTTP URL）
+  - `_tokenNames`: トークン名
+  - `_tokenRarities`: レアリティ（Common, Rare, Epic, Legendary）
+  - `_tokenOrganizations`: 関連組織の配列
+- **URI**: `tokenURI(uint256 tokenId)`関数でメタデータ URI を返す
+  - 現在の実装: `mint`関数で指定された URI をそのまま保存
+  - 将来的には IPFS URI を返す設計
+
+**フロントエンド表示**:
+
+- エモジ（🏆）とレアリティに応じたグラデーション背景で表示
+- レアリティ別の色分け:
+  - Common: グレー系
+  - Rare: ブルー系
+  - Epic: パープル系
+  - Legendary: イエロー → オレンジ → レッドのグラデーション
+- 実際の画像ファイルは使用していない（PoC 段階）
+
+### 現在の画像表示方法（PoC 段階）
+
+#### SFT（スタンプ）の表示
+
+```javascript
+// frontend/src/components/StampCard.jsx
+const getCategoryEmoji = (category) => {
+  const emojis = {
+    finance: "💰",
+    marketing: "📊",
+    business: "💼",
+    programming: "💻",
+    design: "🎨",
+  };
+  return emojis[category] || "🎫";
+};
+```
+
+- カテゴリに応じたエモジを表示
+- カテゴリに応じたグラデーション背景を適用
+
+#### NFT（証明書）の表示
+
+```javascript
+// frontend/src/components/NFTCard.jsx
+const getRarityGradient = (rarity) => {
+  const gradients = {
+    common: "from-gray-400 to-gray-600",
+    rare: "from-blue-400 to-blue-600",
+    epic: "from-purple-400 to-purple-600",
+    legendary: "from-yellow-400 via-orange-400 to-red-500",
+  };
+  return gradients[rarity] || gradients.common;
+};
+```
+
+- レアリティに応じたグラデーション背景を適用
+- エモジ（🏆）を中央に表示
+
+### 将来の設計思想
+
+#### 画像の保存方法
+
+**推奨: IPFS（InterPlanetary File System）**
+
+IPFS は分散ストレージプロトコルで、以下のメリットがあります：
+
+1. **分散性**: 単一のサーバーに依存しない
+2. **永続性**: コンテンツアドレッシングにより、同じコンテンツは同じハッシュを持つ
+3. **改ざん不可能**: ハッシュベースのアドレッシングにより、コンテンツの整合性を保証
+4. **コスト効率**: 中央集権的なサーバーを必要としない
+
+#### 実装方針
+
+**1. メタデータ JSON の構造**
+
+ERC721/ERC1155 の標準メタデータ形式に準拠：
+
+```json
+{
+  "name": "優秀な成績証明書",
+  "description": "東京大学から発行された優秀な成績証明書です。",
+  "image": "ipfs://QmXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+  "attributes": [
+    {
+      "trait_type": "レアリティ",
+      "value": "Epic"
+    },
+    {
+      "trait_type": "企業",
+      "value": "東京大学"
+    }
+  ]
+}
+```
+
+**2. IPFS へのアップロードフロー**
+
+```
+1. 画像ファイルを生成（SVG、PNG、JPEGなど）
+   ↓
+2. IPFSにアップロード
+   ↓
+3. IPFSハッシュ（CID）を取得
+   ↓
+4. メタデータJSONを作成（imageフィールドにIPFS URIを設定）
+   ↓
+5. メタデータJSONをIPFSにアップロード
+   ↓
+6. メタデータのIPFS URIをコントラクトに保存
+```
+
+**3. コントラクトの実装例**
+
+```solidity
+// NFT発行時にIPFS URIを指定
+function mint(
+    address to,
+    string memory ipfsMetadataURI,  // ipfs://Qm...形式
+    string memory name,
+    string memory rarity,
+    string[] memory organizations
+) public onlyOwner returns (uint256) {
+    // ...
+    _tokenUrIs[tokenId] = ipfsMetadataURI;
+    // ...
+}
+```
+
+**4. フロントエンドでの表示**
+
+```javascript
+// IPFS URIから画像を取得
+const metadataURI = await nftContract.tokenURI(tokenId);
+// ipfs://Qm... → https://ipfs.io/ipfs/Qm... に変換
+const httpURI = metadataURI.replace("ipfs://", "https://ipfs.io/ipfs/");
+const metadata = await fetch(httpURI).then((res) => res.json());
+const imageURI = metadata.image.replace("ipfs://", "https://ipfs.io/ipfs/");
+```
+
+#### 代替案
+
+**1. Arweave**
+
+- 永続的なストレージ（一度アップロードすると永続的に保存）
+- ワンタイムペイメントモデル
+- IPFS よりも永続性が高い
+
+**2. 中央集権的なサーバー（非推奨）**
+
+- AWS S3、Google Cloud Storage など
+- 単一障害点となる
+- サーバーコストが継続的に発生
+- ブロックチェーンの分散性のメリットを損なう
+
+#### 実装時の考慮事項
+
+1. **IPFS ピンサービス**: IPFS ノードがオフラインになるとコンテンツにアクセスできなくなるため、ピンサービス（Pinata、Infura IPFS など）の使用を検討
+2. **フォールバック**: IPFS へのアクセスに失敗した場合のフォールバック（現在のエモジ表示など）を実装
+3. **画像の最適化**: ファイルサイズを最小化し、IPFS へのアップロードコストを削減
+4. **メタデータのバージョン管理**: メタデータの更新が必要な場合の対応方法を検討
+
+### まとめ
+
+- **現在（PoC 段階）**: エモジとグラデーションで表示、実際の画像ファイルは使用しない
+- **将来（本番環境）**: IPFS を使用して画像とメタデータを保存し、分散ストレージのメリットを活用
+- **設計方針**: ERC721/ERC1155 の標準メタデータ形式に準拠し、IPFS URI をコントラクトに保存
+
+---
+
+## 状態管理とデータ同期
+
+### 概要
+
+このアプリケーションでは、以下の 3 つのデータストレージが存在します：
+
+1. **Anvil（ローカルブロックチェーン）**: SFT/NFT の状態を保存
+2. **Docker（DynamoDB Local）**: イベント、応募、メッセージなどのデータを保存
+3. **ローカルストレージ（ブラウザ）**: フロントエンドのキャッシュとして使用
+
+### Anvil の状態管理
+
+#### 状態を保存して起動する（推奨）
+
+```bash
+cd contracts
+bash scripts/start-anvil.sh
+```
+
+または、手動で起動する場合：
+
+```bash
+cd contracts
+anvil --state anvil-state.json
+```
+
+**メリット**:
+
+- 再起動後もブロックチェーンの状態が保持される
+- 以前発行した SFT/NFT が残る
+- コントラクトアドレスが変わらない（同じ nonce でデプロイする場合）
+
+**状態ファイル**:
+
+- ファイル名: `anvil-state.json`
+- 場所: `contracts/` ディレクトリ
+- Git にはコミットしない（`.gitignore`に追加済み）
+
+#### 状態をリセットする
+
+```bash
+cd contracts
+bash scripts/reset-anvil.sh
+```
+
+または、手動で削除：
+
+```bash
+cd contracts
+rm anvil-state.json
+```
+
+**注意**: 状態をリセットすると、以前のブロックチェーンの状態がすべて失われます。コントラクトを再デプロイする必要があります。
+
+### Docker（DynamoDB Local）の状態管理
+
+DynamoDB Local は Docker ボリュームにデータを保存します：
+
+```yaml
+volumes:
+  - dynamodb-data:/home/dynamodblocal/data
+```
+
+**データの保持**:
+
+- コンテナを削除しない限り、データは保持されます
+- `docker compose down`を実行しても、ボリュームが削除されなければデータは残ります
+
+**データをリセットする**:
+
+```bash
+cd backend
+docker compose down -v  # -vオプションでボリュームも削除
+```
+
+### ローカルストレージ（ブラウザ）の状態管理
+
+フロントエンドは、ブロックチェーンから取得したデータをローカルストレージにキャッシュします。
+
+**保存されるデータ**:
+
+- スタンプデータ
+- NFT データ
+- ユーザー情報
+- コントラクトバージョン情報
+
+**自動同期機能**:
+
+- コントラクトアドレスが変更されると、自動的にローカルストレージがクリアされます
+- ブロックチェーンからデータを読み込むと、自動的にローカルストレージに保存されます
+
+**ローカルストレージをクリアする**:
+
+1. **ブラウザの開発者ツールを使用**:
+
+   - Chrome/Edge: F12 → Application → Local Storage → すべて削除
+   - Firefox: F12 → Storage → Local Storage → すべて削除
+
+2. **クリーンアップツールを使用**:
+
+   ```bash
+   # frontend/scripts/clean-local-storage.html をブラウザで開く
+   ```
+
+3. **ブラウザのコンソールで実行**:
+   ```javascript
+   localStorage.clear();
+   location.reload();
+   ```
+
+### データ同期の仕組み
+
+#### 同期フロー
+
+```
+1. フロントエンド起動
+   ↓
+2. コントラクトアドレスのバージョンチェック
+   ↓
+3. アドレスが変更されていた場合 → ローカルストレージをクリア
+   ↓
+4. ブロックチェーンからデータを読み込む
+   ↓
+5. ローカルストレージに保存（キャッシュ）
+   ↓
+6. 次回アクセス時は、まずローカルストレージから読み込む
+   ↓
+7. 必要に応じてブロックチェーンから再読み込み
+```
+
+#### 同期のタイミング
+
+- **アプリ起動時**: ブロックチェーンからデータを読み込み、ローカルストレージに保存
+- **データ更新時**: ブロックチェーンから最新データを取得し、ローカルストレージを更新
+- **コントラクトアドレス変更時**: ローカルストレージを自動クリア
+
+### 状態管理のベストプラクティス
+
+#### 開発時の推奨フロー
+
+1. **初回セットアップ**:
+
+   ```bash
+   # 1. Anvilを状態保存付きで起動
+   cd contracts
+   bash scripts/start-anvil.sh
+
+   # 2. コントラクトをデプロイ
+   bash scripts/deploy-all.sh
+
+   # 3. DynamoDB Localを起動
+   cd ../backend
+   npm run dynamodb:up
+   ```
+
+2. **日常的な起動**:
+
+   ```bash
+   # 1. Anvilを起動（状態が自動復元される）
+   cd contracts
+   bash scripts/start-anvil.sh
+
+   # 2. DynamoDB Localを起動（データは保持されている）
+   cd ../backend
+   npm run dynamodb:up
+   ```
+
+3. **状態をリセットしたい場合**:
+
+   ```bash
+   # Anvilの状態をリセット
+   cd contracts
+   bash scripts/reset-anvil.sh
+   bash scripts/deploy-all.sh
+
+   # DynamoDBのデータをリセット
+   cd ../backend
+   docker compose down -v
+   npm run dynamodb:up
+   ```
+
+#### トラブルシューティング
+
+**問題**: コントラクトアドレスが変わってしまった
+
+**解決策**:
+
+1. Anvil の状態ファイル（`anvil-state.json`）が存在するか確認
+2. 同じ nonce でデプロイする場合は、コントラクトアドレスは変わらない
+3. 状態ファイルを削除した場合は、新しいアドレスでデプロイされる
+
+**問題**: ローカルストレージに古いデータが残っている
+
+**解決策**:
+
+1. ブラウザの開発者ツールでローカルストレージをクリア
+2. アプリを再読み込み
+3. ブロックチェーンから最新データを読み込む
+
+**問題**: DynamoDB のデータが消えた
+
+**解決策**:
+
+1. `docker compose down -v`を実行していないか確認
+2. ボリュームが削除されていないか確認: `docker volume ls`
+3. 必要に応じて、テーブルを再作成: `npm run create-api-tables`
 
 ---
 

@@ -8,7 +8,7 @@ import {CareerStampSFT} from "../src/CareerStampSFT.sol";
 contract StampManagerTest is Test {
     // Testを継承してテストコントラクトを作成
     StampManager public stampManager;
-    CareerStampSFT public stampSFT;
+    CareerStampSFT public stampSft;
     address public owner;
     address public user;
 
@@ -18,10 +18,10 @@ contract StampManagerTest is Test {
         user = address(0x1);    // テスト用のユーザーアドレス
         
         // SFTコントラクトをデプロイ
-        stampSFT = new CareerStampSFT();
+        stampSft = new CareerStampSFT();
         
         // StampManagerコントラクトをデプロイ（SFTコントラクトのアドレスを渡す）
-        stampManager = new StampManager(address(stampSFT));
+        stampManager = new StampManager(address(stampSft));
         
         // StampManagerをSFTコントラクトの所有者に設定
         // 注意: 実際の実装では、StampManagerがSFTをmintできるようにする必要があります
@@ -45,7 +45,7 @@ contract StampManagerTest is Test {
         assertEq(amounts[0], 1);
         
         // スタンプのメタデータを取得
-        CareerStampSFT.StampMetadata memory metadata = stampSFT.getStampMetadata(tokenId);
+        CareerStampSFT.StampMetadata memory metadata = stampSft.getStampMetadata(tokenId);
         // スタンプの名前が正しく設定されているか確認
         assertEq(metadata.name, name);
         // スタンプの組織が正しく設定されているか確認
@@ -206,7 +206,7 @@ contract StampManagerTest is Test {
         uint256 afterTimestamp = block.timestamp;
 
         // スタンプのメタデータを取得
-        CareerStampSFT.StampMetadata memory metadata = stampSFT.getStampMetadata(tokenId);
+        CareerStampSFT.StampMetadata memory metadata = stampSft.getStampMetadata(tokenId);
         
         // tokenIdが正しく設定されていることを確認
         assertGt(tokenId, 0);

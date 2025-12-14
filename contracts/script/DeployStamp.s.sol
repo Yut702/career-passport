@@ -10,16 +10,16 @@ contract DeployStamp is Script {
         vm.startBroadcast();
         
         // 1. SFTコントラクトを先にデプロイ
-        CareerStampSFT stampSFT = new CareerStampSFT();
+        CareerStampSFT stampSft = new CareerStampSFT();
         
         // 2. StampManagerコントラクトをデプロイ（SFTコントラクトのアドレスを渡す）
-        StampManager stampManager = new StampManager(address(stampSFT));
+        StampManager stampManager = new StampManager(address(stampSft));
         
         // 3. StampManagerをSFTコントラクトの所有者に設定（StampManagerがSFTをmintできるようにする）
-        stampSFT.transferOwnership(address(stampManager));
+        stampSft.transferOwnership(address(stampManager));
         
         vm.stopBroadcast();
-        return (stampManager, stampSFT);
+        return (stampManager, stampSft);
     }
 }
 
