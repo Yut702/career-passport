@@ -194,6 +194,10 @@ JWT_SECRET=your-secret-key-change-in-production
 
 # サーバー設定
 PORT=3000
+
+# AWS認証情報（DynamoDB Local用）
+AWS_ACCESS_KEY_ID=dummy
+AWS_SECRET_ACCESS_KEY=dummy
 EOF
 
 # DynamoDB Local (Docker) を起動
