@@ -3,6 +3,10 @@ import { v4 as uuidv4 } from "uuid";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import dotenv from "dotenv";
+
+// 環境変数を読み込む
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,6 +17,12 @@ const config = {
 
 if (process.env.DYNAMODB_ENDPOINT) {
   config.endpoint = process.env.DYNAMODB_ENDPOINT;
+  // DynamoDB Localを使用する場合、環境変数から認証情報を取得
+  // credentialsオブジェクトを明示的に設定することで、環境変数や認証情報ファイルからの読み込みを上書き
+  config.credentials = new AWS.Credentials(
+    process.env.AWS_ACCESS_KEY_ID || "dummy",
+    process.env.AWS_SECRET_ACCESS_KEY || "dummy"
+  );
 }
 
 const dynamoDB = new AWS.DynamoDB.DocumentClient(config);
@@ -97,6 +107,11 @@ export async function saveZKPProofPublicInfo(
         `テーブル ${TABLE} が存在しません。テーブルを作成してください: npm run create-api-tables`
       );
     }
+    if (err.message && err.message.includes("security token")) {
+      throw new Error(
+        `DynamoDB認証エラー: .envファイルにAWS_ACCESS_KEY_IDとAWS_SECRET_ACCESS_KEYが設定されているか確認してください。DynamoDB Localを使用する場合は、DYNAMODB_ENDPOINT=http://localhost:8000も設定してください。`
+      );
+    }
     throw err;
   }
 }
@@ -127,6 +142,11 @@ export async function getZKPProofsByWallet(walletAddress) {
       console.warn(`Table or index not found for ${TABLE}:`, err.message);
       return [];
     }
+    if (err.message && err.message.includes("security token")) {
+      throw new Error(
+        `DynamoDB認証エラー: .envファイルにAWS_ACCESS_KEY_IDとAWS_SECRET_ACCESS_KEYが設定されているか確認してください。DynamoDB Localを使用する場合は、DYNAMODB_ENDPOINT=http://localhost:8000も設定してください。`
+      );
+    }
     throw err;
   }
 }
@@ -149,6 +169,11 @@ export async function getZKPProofById(proofId) {
     if (err.code === "ResourceNotFoundException") {
       console.warn(`Table not found for ${TABLE}:`, err.message);
       return null;
+    }
+    if (err.message && err.message.includes("security token")) {
+      throw new Error(
+        `DynamoDB認証エラー: .envファイルにAWS_ACCESS_KEY_IDとAWS_SECRET_ACCESS_KEYが設定されているか確認してください。DynamoDB Localを使用する場合は、DYNAMODB_ENDPOINT=http://localhost:8000も設定してください。`
+      );
     }
     throw err;
   }

@@ -16,9 +16,9 @@ const config = {
 
 if (process.env.DYNAMODB_ENDPOINT) {
   config.endpoint = process.env.DYNAMODB_ENDPOINT;
-  // DynamoDB Localを使用する場合、ダミーの認証情報を設定
-  config.accessKeyId = "dummy";
-  config.secretAccessKey = "dummy";
+  // DynamoDB Localを使用する場合、環境変数から認証情報を取得
+  config.accessKeyId = process.env.AWS_ACCESS_KEY_ID || "dummy";
+  config.secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY || "dummy";
 }
 
 const dynamoDB = new AWS.DynamoDB(config);
