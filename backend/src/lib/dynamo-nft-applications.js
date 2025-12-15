@@ -1,5 +1,9 @@
 import AWS from "aws-sdk";
 import { v4 as uuidv4 } from "uuid";
+import dotenv from "dotenv";
+
+// 環境変数を読み込む
+dotenv.config();
 
 const config = {
   region: process.env.AWS_REGION || "ap-northeast-1",
@@ -7,9 +11,12 @@ const config = {
 
 if (process.env.DYNAMODB_ENDPOINT) {
   config.endpoint = process.env.DYNAMODB_ENDPOINT;
-  // DynamoDB Localを使用する場合、ダミーの認証情報を設定
-  config.accessKeyId = "dummy";
-  config.secretAccessKey = "dummy";
+  // DynamoDB Localを使用する場合、環境変数から認証情報を取得
+  // credentialsオブジェクトを明示的に設定することで、環境変数や認証情報ファイルからの読み込みを上書き
+  config.credentials = new AWS.Credentials(
+    process.env.AWS_ACCESS_KEY_ID || "dummy",
+    process.env.AWS_SECRET_ACCESS_KEY || "dummy"
+  );
 }
 
 const dynamoDB = new AWS.DynamoDB.DocumentClient(config);
@@ -19,26 +26,40 @@ const TABLE = "NonFungibleCareerNFTApplications";
  * NFT申請を作成
  */
 export async function createNFTApplication(data) {
-  const applicationId = uuidv4();
-  const application = {
-    applicationId,
-    userWalletAddress: data.userWalletAddress.toLowerCase(),
-    orgWalletAddress: data.orgWalletAddress.toLowerCase(),
-    organization: data.organization,
-    stampCount: data.stampCount || 0,
-    status: "pending", // pending, approved, rejected, issued
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
+  try {
+    const applicationId = uuidv4();
+    const application = {
+      applicationId,
+      userWalletAddress: data.userWalletAddress.toLowerCase(),
+      orgWalletAddress: data.orgWalletAddress.toLowerCase(),
+      organization: data.organization,
+      stampCount: data.stampCount || 0,
+      status: "pending", // pending, approved, rejected, issued
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
 
-  await dynamoDB
-    .put({
-      TableName: TABLE,
-      Item: application,
-    })
-    .promise();
+    await dynamoDB
+      .put({
+        TableName: TABLE,
+        Item: application,
+      })
+      .promise();
 
-  return application;
+    return application;
+  } catch (err) {
+    if (err.code === "ResourceNotFoundException") {
+      throw new Error(
+        `テーブル ${TABLE} が存在しません。テーブルを作成してください: npm run create-api-tables`
+      );
+    }
+    if (err.message && err.message.includes("security token")) {
+      throw new Error(
+        `DynamoDB認証エラー: .envファイルにAWS_ACCESS_KEY_IDとAWS_SECRET_ACCESS_KEYが設定されているか確認してください。DynamoDB Localを使用する場合は、DYNAMODB_ENDPOINT=http://localhost:8000も設定してください。`
+      );
+    }
+    throw err;
+  }
 }
 
 /**
