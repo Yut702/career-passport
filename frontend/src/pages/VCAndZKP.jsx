@@ -12,11 +12,6 @@ import { storage } from "../lib/storage";
 import { useWalletConnect } from "../hooks/useWalletConnect.js";
 import { zkpProofAPI } from "../lib/api.js";
 
-// dataディレクトリのVCファイルを動的に読み込む
-const vcModules = import.meta.glob("/src/data/sample-vcs/*.json", {
-  eager: true,
-});
-
 // 初期VCを読み込む関数
 const loadInitialVCs = () => {
   try {
@@ -30,27 +25,10 @@ const loadInitialVCs = () => {
   return [];
 };
 
-// 利用可能なVCファイル一覧を取得（W3C標準形式をそのまま使用）
-const getAvailableVCs = () => {
-  return Object.keys(vcModules).map((path) => {
-    const fileName = path.split("/").pop();
-    const vcData = vcModules[path].default || vcModules[path];
-
-    return {
-      path,
-      fileName,
-      data: vcData, // W3C標準形式をそのまま使用
-      displayName: vcData.description || getVCType(vcData) || fileName,
-    };
-  });
-};
-
 export default function VCAndZKP() {
   const { account } = useWalletConnect();
   const [activeTab, setActiveTab] = useState("vc"); // "vc" or "zkp"
   const [vcs, setVcs] = useState(loadInitialVCs);
-  const availableVCs = getAvailableVCs();
-  const [selectedVCFiles, setSelectedVCFiles] = useState([]); // 複数選択対応
   const [loading, setLoading] = useState(false);
   const [proofStatus, setProofStatus] = useState("idle");
   const [proofData, setProofData] = useState(null);
@@ -136,52 +114,6 @@ export default function VCAndZKP() {
       }
       return false;
     });
-  };
-
-  // dataディレクトリのVCファイルを複数読み込む
-  const handleLoadVCsFromFiles = () => {
-    if (selectedVCFiles.length === 0) return;
-
-    setLoading(true);
-    const newVCs = [];
-    const skippedVCs = [];
-
-    selectedVCFiles.forEach((vcPath) => {
-      const selectedVC = availableVCs.find((vc) => vc.path === vcPath);
-      if (selectedVC) {
-        // 既に同じIDのVCが存在するかチェック
-        const existingVC = vcs.find((vc) => vc.id === selectedVC.data.id);
-        if (existingVC) {
-          skippedVCs.push(selectedVC.fileName);
-          return;
-        }
-
-        // VCを追加
-        const newVC = {
-          ...selectedVC.data,
-          loadedFromFile: true,
-          fileName: selectedVC.fileName,
-        };
-        newVCs.push(newVC);
-      }
-    });
-
-    if (newVCs.length > 0) {
-      const updatedVCs = [...vcs, ...newVCs];
-      setVcs(updatedVCs);
-      localStorage.setItem("studentVCs", JSON.stringify(updatedVCs));
-    }
-
-    if (skippedVCs.length > 0) {
-      alert(`以下のVCは既に追加されています:\n${skippedVCs.join("\n")}`);
-    }
-
-    if (newVCs.length > 0) {
-      alert(`${newVCs.length}個のVCを追加しました。`);
-    }
-
-    setSelectedVCFiles([]);
-    setLoading(false);
   };
 
   const getVCDisplayName = (vc) => {
@@ -378,7 +310,7 @@ export default function VCAndZKP() {
     } catch (error) {
       console.error("Error generating proof:", error);
       alert(
-        `証明の生成に失敗しました: ${error.message}\n\n注意: 回路ファイル（.wasm, .zkey）がビルドされていることを確認してください。`
+        `証明の生成に失敗しました: ${error.message}\n\n注意: バックエンドがローカルでzkpフォルダにアクセスできることを確認してください。`
       );
       setProofStatus("idle");
     }
@@ -691,89 +623,100 @@ export default function VCAndZKP() {
             <div className="mb-8">
               <h3 className="text-xl font-bold text-gray-900 mb-4">VCを追加</h3>
 
-              {/* dataディレクトリからVCを読み込む（複数選択対応） */}
+              {/* ローカルディスクからVCファイルを選択 */}
               <div className="mb-6 p-6 bg-blue-50 border-2 border-blue-200 rounded-xl">
                 <h4 className="text-lg font-bold text-gray-900 mb-3">
-                  📁 dataディレクトリのVCファイルから読み込む（複数選択可能）
+                  📁 ローカルディスクからVCファイルを読み込む
                 </h4>
                 <div className="space-y-3">
-                  <div className="max-h-64 overflow-y-auto border border-gray-300 rounded-lg p-3 bg-white">
-                    {availableVCs
-                      .filter(
-                        (vc) =>
-                          !vc.fileName.includes("README") &&
-                          !vc.fileName.includes("VC_AND_NFT")
-                      )
-                      .map((vc) => {
-                        const isAlreadyAdded = vcs.some(
-                          (existingVC) => existingVC.id === vc.data.id
-                        );
-                        return (
-                          <label
-                            key={vc.path}
-                            className="flex items-start space-x-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedVCFiles.includes(vc.path)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setSelectedVCFiles([
-                                    ...selectedVCFiles,
-                                    vc.path,
-                                  ]);
-                                } else {
-                                  setSelectedVCFiles(
-                                    selectedVCFiles.filter(
-                                      (path) => path !== vc.path
-                                    )
-                                  );
-                                }
-                              }}
-                              disabled={isAlreadyAdded || loading}
-                              className="w-5 h-5 text-blue-600 mt-1"
-                            />
-                            <div className="flex-1">
-                              <div className="flex items-center space-x-2">
-                                <span className="text-sm text-gray-700">
-                                  {vc.fileName}
-                                </span>
-                                {isAlreadyAdded && (
-                                  <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded text-xs">
-                                    既に追加済み
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-xs text-gray-500">
-                                {vc.displayName}
-                              </p>
-                            </div>
-                          </label>
-                        );
-                      })}
-                  </div>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={handleLoadVCsFromFiles}
-                      disabled={selectedVCFiles.length === 0 || loading}
-                      className="flex-1 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-                    >
-                      {loading
-                        ? "読み込み中..."
-                        : `選択した${selectedVCFiles.length}個のVCを読み込む`}
-                    </button>
-                    <button
-                      onClick={() => setSelectedVCFiles([])}
-                      disabled={selectedVCFiles.length === 0 || loading}
-                      className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      選択をクリア
-                    </button>
-                  </div>
+                  <input
+                    type="file"
+                    accept=".json"
+                    multiple
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      if (files.length === 0) return;
+
+                      setLoading(true);
+                      const newVCs = [];
+                      const skippedVCs = [];
+
+                      files.forEach((file) => {
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                          try {
+                            const vcData = JSON.parse(
+                              event.target?.result || "{}"
+                            );
+
+                            // 既に同じIDのVCが存在するかチェック
+                            const existingVC = vcs.find(
+                              (vc) => vc.id === vcData.id
+                            );
+                            if (existingVC) {
+                              skippedVCs.push(file.name);
+                              return;
+                            }
+
+                            // VCを追加
+                            const newVC = {
+                              ...vcData,
+                              loadedFromFile: true,
+                              fileName: file.name,
+                            };
+                            newVCs.push(newVC);
+
+                            // 全てのファイルを読み込んだら更新
+                            if (
+                              newVCs.length + skippedVCs.length ===
+                              files.length
+                            ) {
+                              if (newVCs.length > 0) {
+                                const updatedVCs = [...vcs, ...newVCs];
+                                setVcs(updatedVCs);
+                                localStorage.setItem(
+                                  "studentVCs",
+                                  JSON.stringify(updatedVCs)
+                                );
+                              }
+
+                              if (skippedVCs.length > 0) {
+                                alert(
+                                  `以下のVCは既に追加されています:\n${skippedVCs.join(
+                                    "\n"
+                                  )}`
+                                );
+                              }
+
+                              if (newVCs.length > 0) {
+                                alert(`${newVCs.length}個のVCを追加しました。`);
+                              }
+
+                              setLoading(false);
+                              // ファイル入力をリセット
+                              e.target.value = "";
+                            }
+                          } catch (error) {
+                            console.error(
+                              `Error reading VC file ${file.name}:`,
+                              error
+                            );
+                            alert(
+                              `VCファイル ${file.name} の読み込みに失敗しました: ${error.message}`
+                            );
+                            setLoading(false);
+                          }
+                        };
+                        reader.readAsText(file);
+                      });
+                    }}
+                    disabled={loading}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                  <p className="text-xs text-gray-600">
+                    ローカルディスクからVCファイル（JSON形式）を選択して読み込むことができます。複数選択可能です。
+                  </p>
                 </div>
-                <p className="text-xs text-gray-600 mt-2">
-                  data/sample-vcsディレクトリにあるVCファイルを複数選択して一度に読み込むことができます
-                </p>
               </div>
             </div>
 
@@ -809,7 +752,7 @@ export default function VCAndZKP() {
                     まだVCが登録されていません
                   </p>
                   <p className="text-sm text-gray-400">
-                    上記のドロップダウンからVCファイルを選択して読み込んでください
+                    VCはローカルストレージに保存されます
                   </p>
                 </div>
               ) : (

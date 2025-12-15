@@ -11,8 +11,16 @@ export async function verifyToeicProof(proofData) {
   const { proof, publicSignals } = proofData;
 
   try {
+    // 検証鍵は公開情報なので、frontend/public/zkp/build/から読み込む
     const vkeyPath = "/zkp/build/toeic.vkey.json";
-    const vkey = await fetch(vkeyPath).then((res) => res.json());
+    const vkeyResponse = await fetch(vkeyPath);
+    if (!vkeyResponse.ok) {
+      throw new Error(
+        `検証鍵ファイルが見つかりません: ${vkeyPath} (${vkeyResponse.status})\n` +
+          `検証鍵ファイル（.vkey.json）がfrontend/public/zkp/build/に配置されていることを確認してください。`
+      );
+    }
+    const vkey = await vkeyResponse.json();
 
     const result = await snarkjs.groth16.verify(vkey, publicSignals, proof);
     return result;
@@ -38,8 +46,16 @@ export async function verifyDegreeProof(proofData) {
   const { proof, publicSignals } = proofData;
 
   try {
+    // 検証鍵は公開情報なので、frontend/public/zkp/build/から読み込む
     const vkeyPath = "/zkp/build/degree.vkey.json";
-    const vkey = await fetch(vkeyPath).then((res) => res.json());
+    const vkeyResponse = await fetch(vkeyPath);
+    if (!vkeyResponse.ok) {
+      throw new Error(
+        `検証鍵ファイルが見つかりません: ${vkeyPath} (${vkeyResponse.status})\n` +
+          `検証鍵ファイル（.vkey.json）がfrontend/public/zkp/build/に配置されていることを確認してください。`
+      );
+    }
+    const vkey = await vkeyResponse.json();
 
     const result = await snarkjs.groth16.verify(vkey, publicSignals, proof);
     return result;
