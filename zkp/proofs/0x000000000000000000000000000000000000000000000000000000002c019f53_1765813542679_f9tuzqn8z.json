@@ -10,11 +10,10 @@
   ],
   "publicInputs": {
     "university": "東京大学",
-    "major": "情報工学科"
+    "major": "情報工学科",
+    "degree": "学士"
   },
-  "hiddenAttributes": {
-    "degree": "hidden"
-  },
+  "hiddenAttributes": {},
   "satisfiedConditions": [
     {
       "type": "degree",
@@ -29,8 +28,8 @@
       "issuer": "東京大学"
     }
   ],
-  "timestamp": "2025-12-14T12:59:34.126Z",
-  "proofHash": "0x000000000000000000000000000000000000000000000000000000000e9bc7cb",
+  "timestamp": "2025-12-15T15:45:38.141Z",
+  "proofHash": "0x000000000000000000000000000000000000000000000000000000002c019f53",
   "conditions": {
     "minToeicScore": 800,
     "minGpa": 0
@@ -52,8 +51,8 @@
         "satisfied": true
       }
     ],
-    "timestamp": "2025-12-14T12:59:34.126Z",
-    "verifiedAt": "2025-12-14T12:59:36.460Z"
+    "timestamp": "2025-12-15T15:45:38.141Z",
+    "verifiedAt": "2025-12-15T15:45:42.659Z"
   },
-  "id": "0x000000000000000000000000000000000000000000000000000000000e9bc7cb_1765717176460_ywsrijpii"
+  "id": "0x000000000000000000000000000000000000000000000000000000002c019f53_1765813542659_xbou48hwi"
 }

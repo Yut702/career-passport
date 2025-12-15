@@ -6,8 +6,50 @@ import {
   getZKPProofsByWallet,
   getZKPProofById,
 } from "../lib/dynamo-zkp-proofs.js";
+import { generateToeicProof, generateDegreeProof } from "../lib/zkp-prover.js";
 
 const router = express.Router();
+
+/**
+ * POST /api/zkp-proofs/generate
+ * ZKP証明を生成（ローカル処理）
+ * @body {string} type - 証明タイプ ("toeic" | "degree")
+ * @body {Object} inputs - 証明入力
+ */
+router.post("/generate", async (req, res) => {
+  try {
+    const { type, inputs } = req.body;
+
+    if (!type || !inputs) {
+      return res.status(400).json({
+        error: "type and inputs are required",
+      });
+    }
+
+    let proofData;
+    switch (type) {
+      case "toeic":
+        proofData = await generateToeicProof(inputs);
+        break;
+      case "degree":
+        proofData = await generateDegreeProof(inputs);
+        break;
+      default:
+        return res.status(400).json({
+          error: `Unknown proof type: ${type}`,
+        });
+    }
+
+    res.json({
+      ok: true,
+      proof: proofData,
+    });
+  } catch (err) {
+    console.error("Error generating ZKP proof:", err);
+    const errorMessage = err.message || "Internal server error";
+    res.status(500).json({ error: errorMessage });
+  }
+});
 
 /**
  * POST /api/zkp-proofs
@@ -30,8 +72,8 @@ router.post("/", async (req, res) => {
       ? `${publicInfo.proofHash}_${timestamp}_${randomStr}`
       : `zkp_${timestamp}_${randomStr}`;
 
-    // 完全な証明データをdataフォルダに保存
-    const filePath = saveZKPProofToFile(proofId, fullProofData);
+    // 完全な証明データをzkp/proofsフォルダに保存
+    const filePath = saveZKPProofToFile(proofId, fullProofData, walletAddress);
 
     // 公開情報のみをデータベースに保存
     const publicProofData = await saveZKPProofPublicInfo(

@@ -424,6 +424,20 @@ export const companyAPI = {
  */
 export const zkpProofAPI = {
   /**
+   * ZKP証明を生成（バックエンドのローカル処理）
+   *
+   * @param {string} type - 証明タイプ ("toeic" | "degree")
+   * @param {Object} inputs - 証明入力
+   * @returns {Promise<Object>} 証明データ
+   */
+  generateProof: async (type, inputs) => {
+    return request("/zkp-proofs/generate", {
+      method: "POST",
+      body: JSON.stringify({ type, inputs }),
+    });
+  },
+
+  /**
    * ZKP証明を保存（完全なデータはdataフォルダ、公開情報はデータベース）
    *
    * @param {string} walletAddress - ウォレットアドレス

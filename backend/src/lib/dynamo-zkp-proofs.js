@@ -28,22 +28,30 @@ if (process.env.DYNAMODB_ENDPOINT) {
 const dynamoDB = new AWS.DynamoDB.DocumentClient(config);
 const TABLE =
   process.env.DYNAMODB_TABLE_ZKP_PROOFS || "NonFungibleCareerZKPProofs";
-const DATA_DIR = path.join(__dirname, "../../../frontend/src/data/zkp-proofs");
+// ZKP証明ファイルはzkpフォルダ内に保存（ローカル処理）
+const ZKP_DIR = path.join(__dirname, "../../../zkp");
+const DATA_DIR = path.join(ZKP_DIR, "proofs");
 
-// dataフォルダが存在しない場合は作成
+// proofsフォルダが存在しない場合は作成
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
 /**
- * ZKP証明の完全なデータをdataフォルダに保存
+ * ZKP証明の完全なデータをzkp/proofsフォルダに保存
  * @param {string} proofId - 証明ID
  * @param {Object} fullProofData - 完全な証明データ（秘密情報を含む）
+ * @param {string} walletAddress - ウォレットアドレス（フィルタリング用）
  */
-export function saveZKPProofToFile(proofId, fullProofData) {
+export function saveZKPProofToFile(proofId, fullProofData, walletAddress) {
   try {
+    // walletAddressをfullProofDataに追加（フィルタリング用）
+    const dataToSave = {
+      ...fullProofData,
+      walletAddress: walletAddress?.toLowerCase() || null,
+    };
     const filePath = path.join(DATA_DIR, `${proofId}.json`);
-    fs.writeFileSync(filePath, JSON.stringify(fullProofData, null, 2), "utf8");
+    fs.writeFileSync(filePath, JSON.stringify(dataToSave, null, 2), "utf8");
     return filePath;
   } catch (err) {
     console.error("Error saving ZKP proof to file:", err);
@@ -117,10 +125,70 @@ export async function saveZKPProofPublicInfo(
 }
 
 /**
- * ウォレットアドレスでZKP証明の公開情報を取得
+ * zkp/proofsフォルダからウォレットアドレスに関連するZKP証明を取得（ローカル処理）
+ * @param {string} walletAddress - ウォレットアドレス
+ */
+export function getZKPProofsFromLocalFiles(walletAddress) {
+  try {
+    const proofs = [];
+    const files = fs.readdirSync(DATA_DIR);
+    const targetAddress = walletAddress?.toLowerCase();
+
+    for (const file of files) {
+      if (!file.endsWith(".json")) continue;
+
+      try {
+        const filePath = path.join(DATA_DIR, file);
+        const proofData = JSON.parse(fs.readFileSync(filePath, "utf8"));
+
+        // ウォレットアドレスが一致するもののみを取得
+        const proofWalletAddress = proofData.walletAddress?.toLowerCase();
+        if (targetAddress && proofWalletAddress !== targetAddress) {
+          continue; // ウォレットアドレスが一致しない場合はスキップ
+        }
+
+        const proofId = file.replace(".json", "");
+
+        // 公開情報を抽出
+        const publicInfo = {
+          proofId,
+          walletAddress: proofWalletAddress || targetAddress,
+          proofHash: proofData.proofHash,
+          publicInputs: proofData.publicInputs || {},
+          usedVCs: proofData.usedVCs || [],
+          satisfiedConditions: proofData.satisfiedConditions || [],
+          verified: proofData.verifyResult?.verified === true,
+          verifiedAt: proofData.verifyResult?.verifiedAt || proofData.timestamp,
+          createdAt: proofData.timestamp,
+        };
+
+        proofs.push(publicInfo);
+      } catch (err) {
+        console.warn(`Error reading proof file ${file}:`, err.message);
+        continue;
+      }
+    }
+
+    // 検証済みのもののみを返す
+    return proofs.filter((p) => p.verified === true);
+  } catch (err) {
+    console.error("Error reading ZKP proofs from local files:", err);
+    return [];
+  }
+}
+
+/**
+ * ウォレットアドレスでZKP証明の公開情報を取得（zkp/proofsフォルダから読み込む）
  * @param {string} walletAddress - ウォレットアドレス
  */
 export async function getZKPProofsByWallet(walletAddress) {
+  // まずローカルファイル（zkp/proofs）から読み込む
+  const localProofs = getZKPProofsFromLocalFiles(walletAddress);
+  if (localProofs.length > 0) {
+    return localProofs;
+  }
+
+  // フォールバック: DynamoDBから取得
   try {
     const result = await dynamoDB
       .query({
@@ -152,10 +220,33 @@ export async function getZKPProofsByWallet(walletAddress) {
 }
 
 /**
- * 証明IDでZKP証明の公開情報を取得
+ * 証明IDでZKP証明の公開情報を取得（zkp/proofsフォルダから読み込む）
  * @param {string} proofId - 証明ID
  */
 export async function getZKPProofById(proofId) {
+  // まずローカルファイル（zkp/proofs）から読み込む
+  try {
+    const filePath = path.join(DATA_DIR, `${proofId}.json`);
+    if (fs.existsSync(filePath)) {
+      const proofData = JSON.parse(fs.readFileSync(filePath, "utf8"));
+
+      // 公開情報を抽出
+      return {
+        proofId,
+        proofHash: proofData.proofHash,
+        publicInputs: proofData.publicInputs || {},
+        usedVCs: proofData.usedVCs || [],
+        satisfiedConditions: proofData.satisfiedConditions || [],
+        verified: proofData.verifyResult?.verified === true,
+        verifiedAt: proofData.verifyResult?.verifiedAt || proofData.timestamp,
+        createdAt: proofData.timestamp,
+      };
+    }
+  } catch (err) {
+    console.warn(`Error reading proof file ${proofId}.json:`, err.message);
+  }
+
+  // フォールバック: DynamoDBから取得
   try {
     const result = await dynamoDB
       .get({
