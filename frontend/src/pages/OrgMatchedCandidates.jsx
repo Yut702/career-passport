@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useWalletConnect } from "../hooks/useWalletConnect";
 import { useContracts } from "../hooks/useContracts";
-import { matchAPI, jobConditionAPI } from "../lib/api";
+import { matchAPI, jobConditionAPI, zkpProofAPI } from "../lib/api";
 import { formatAddress } from "../lib/utils";
 import { verifyProofs } from "../lib/zkp/verifier";
 import { jobCategories, industries } from "../data/jobCategories";
@@ -21,6 +21,7 @@ export default function OrgMatchedCandidates() {
   const [nfts, setNfts] = useState([]);
   const [zkpProof, setZkpProof] = useState(null);
   const [zkpVerificationResult, setZkpVerificationResult] = useState(null);
+  const [zkpConditions, setZkpConditions] = useState([]); // ユーザーが設定したZKP条件
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [loadingStamps, setLoadingStamps] = useState(false);
@@ -137,6 +138,37 @@ export default function OrgMatchedCandidates() {
         );
         if (conditionResponse.ok && conditionResponse.condition) {
           setStudentCondition(conditionResponse.condition);
+
+          // ZKP条件を取得（selectedZKPProofsがある場合）
+          if (
+            conditionResponse.condition.selectedZKPProofs &&
+            conditionResponse.condition.selectedZKPProofs.length > 0
+          ) {
+            const zkpConditionsData = [];
+            for (const proofId of conditionResponse.condition
+              .selectedZKPProofs) {
+              try {
+                const zkpResponse = await zkpProofAPI.getZKPProofById(proofId);
+                if (zkpResponse.ok && zkpResponse.proof) {
+                  zkpConditionsData.push(zkpResponse.proof);
+                } else {
+                  // 証明が見つからない場合は警告のみ（エラーにはしない）
+                  console.warn(
+                    `ZKP証明 ${proofId} が見つかりませんでした（スキップ）`
+                  );
+                }
+              } catch (err) {
+                // エラーが発生しても続行（証明が見つからない場合はスキップ）
+                console.warn(
+                  `ZKP証明 ${proofId} の取得に失敗（スキップ）:`,
+                  err.message || err
+                );
+              }
+            }
+            setZkpConditions(zkpConditionsData);
+          } else {
+            setZkpConditions([]);
+          }
         }
       } catch (err) {
         console.error("Error loading student condition:", err);
@@ -511,6 +543,120 @@ export default function OrgMatchedCandidates() {
                 📋 学生の求人条件
               </h3>
               <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-6">
+                {/* ZKP条件の表示 */}
+                {zkpConditions.length > 0 && (
+                  <div className="mb-4 pb-4 border-b border-blue-300">
+                    <h4 className="text-sm font-bold text-gray-900 mb-2">
+                      🔐 VCのZKP条件
+                    </h4>
+                    <div className="space-y-2">
+                      {zkpConditions.map((zkpCondition, index) => (
+                        <div
+                          key={zkpCondition.proofId || index}
+                          className="bg-white rounded-lg p-3 border border-blue-200"
+                        >
+                          {/* 使用されたVC */}
+                          {zkpCondition.usedVCs &&
+                            zkpCondition.usedVCs.length > 0 && (
+                              <div className="mb-2">
+                                <span className="text-xs font-semibold text-gray-700">
+                                  使用VC:
+                                </span>{" "}
+                                <span className="text-xs text-gray-900">
+                                  {zkpCondition.usedVCs
+                                    .map((vc) => {
+                                      const vcNames = {
+                                        myNumber: "マイナンバー",
+                                        toeic: "TOEIC",
+                                        degree: "学位",
+                                      };
+                                      return vcNames[vc.type] || vc.type;
+                                    })
+                                    .join(", ")}
+                                </span>
+                              </div>
+                            )}
+                          {/* 満たした条件 */}
+                          {zkpCondition.satisfiedConditions &&
+                            zkpCondition.satisfiedConditions.length > 0 && (
+                              <div className="mb-2">
+                                <span className="text-xs font-semibold text-gray-700">
+                                  満たした条件:
+                                </span>
+                                <div className="mt-1 space-y-1">
+                                  {zkpCondition.satisfiedConditions.map(
+                                    (condition, idx) => {
+                                      // オブジェクトの場合は適切に表示
+                                      if (
+                                        typeof condition === "object" &&
+                                        condition !== null
+                                      ) {
+                                        const typeNames = {
+                                          toeic: "TOEIC",
+                                          degree: "学位",
+                                          age: "年齢",
+                                        };
+                                        const typeName =
+                                          typeNames[condition.type] ||
+                                          condition.type;
+                                        return (
+                                          <div
+                                            key={idx}
+                                            className={`text-xs px-2 py-1 rounded ${
+                                              condition.satisfied
+                                                ? "bg-green-50 text-green-800 border border-green-200"
+                                                : "bg-red-50 text-red-800 border border-red-200"
+                                            }`}
+                                          >
+                                            {condition.satisfied ? "✅" : "❌"}{" "}
+                                            {typeName}: {condition.condition}
+                                          </div>
+                                        );
+                                      }
+                                      // 文字列の場合はそのまま表示
+                                      return (
+                                        <div
+                                          key={idx}
+                                          className="text-xs text-gray-900 bg-gray-50 px-2 py-1 rounded"
+                                        >
+                                          {String(condition)}
+                                        </div>
+                                      );
+                                    }
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          {/* 公開情報 */}
+                          {zkpCondition.publicInputs &&
+                            Object.keys(zkpCondition.publicInputs).length >
+                              0 && (
+                              <div>
+                                <span className="text-xs font-semibold text-gray-700">
+                                  公開情報:
+                                </span>
+                                <div className="mt-1 space-y-1">
+                                  {Object.entries(
+                                    zkpCondition.publicInputs
+                                  ).map(([key, value]) => (
+                                    <div
+                                      key={key}
+                                      className="text-xs text-gray-900"
+                                    >
+                                      <span className="font-medium">
+                                        {key}:
+                                      </span>{" "}
+                                      {String(value)}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="font-semibold text-gray-700">

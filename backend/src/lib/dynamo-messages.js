@@ -113,23 +113,55 @@ export async function getMessagesBySender(senderAddress) {
 
 /**
  * 会話一覧を取得（送信者または受信者として参加している会話）
+ * シンプルな実装：会話IDでグループ化して重複を防ぐ
  */
 export async function getConversations(walletAddress) {
   const address = walletAddress.toLowerCase();
+
+  // 送信者としてのメッセージを取得
   const sentMessages = await getMessagesBySender(address);
 
-  // 会話 ID のセットを作成
-  const conversationIds = new Set();
-  sentMessages.forEach((msg) => {
-    conversationIds.add(msg.conversationId);
-  });
+  // 受信者としてのメッセージを取得（スキャンを使用）
+  const receivedMessages = await dynamoDB
+    .scan({
+      TableName: TABLE,
+      FilterExpression: "receiverAddress = :receiverAddress",
+      ExpressionAttributeValues: {
+        ":receiverAddress": address,
+      },
+    })
+    .promise()
+    .then((result) => result.Items || []);
 
-  // 各会話の最新メッセージを取得
+  // すべてのメッセージを結合
+  const allMessages = [...sentMessages, ...receivedMessages];
+
+  // 会話IDでグループ化（重複を防ぐ）
+  const conversationMap = new Map();
+
+  for (const msg of allMessages) {
+    const conversationId = msg.conversationId;
+
+    // 既に存在する会話の場合、最新のメッセージを保持
+    if (!conversationMap.has(conversationId)) {
+      conversationMap.set(conversationId, {
+        conversationId,
+        messages: [],
+      });
+    }
+    conversationMap.get(conversationId).messages.push(msg);
+  }
+
+  // 各会話の情報を構築
   const conversations = [];
-  for (const conversationId of conversationIds) {
-    const messages = await getMessagesByConversation(conversationId);
-    if (messages.length > 0) {
-      const latestMessage = messages[0];
+  for (const [conversationId, data] of conversationMap) {
+    // メッセージを時系列でソート（新しい順）
+    const sortedMessages = data.messages.sort(
+      (a, b) => new Date(b.sentAt) - new Date(a.sentAt)
+    );
+
+    if (sortedMessages.length > 0) {
+      const latestMessage = sortedMessages[0];
       const otherAddress =
         latestMessage.senderAddress === address
           ? latestMessage.receiverAddress
@@ -139,13 +171,14 @@ export async function getConversations(walletAddress) {
         conversationId,
         otherAddress,
         latestMessage,
-        unreadCount: messages.filter(
+        unreadCount: sortedMessages.filter(
           (m) => m.receiverAddress === address && !m.read
         ).length,
       });
     }
   }
 
+  // 最新メッセージの時刻でソート（新しい順）
   return conversations.sort(
     (a, b) =>
       new Date(b.latestMessage.sentAt) - new Date(a.latestMessage.sentAt)
