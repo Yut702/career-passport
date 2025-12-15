@@ -19,6 +19,7 @@
     "check-tables": "node scripts/check-tables.js",
     "check-indexes": "node scripts/check-indexes.js",
     "clean-database": "node scripts/clean-database.js",
+    "clean-messages": "node scripts/clean-messages.js",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
     "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --coverage"

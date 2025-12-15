@@ -1,16 +1,12 @@
 /**
- * DynamoDBデータベースをクリーンにするスクリプト
+ * メッセージテーブルのデータのみをクリーンにするスクリプト
  *
- * 用途: すべてのDynamoDBテーブル内のデータを削除（テーブル自体は削除しません）
- * 対象テーブル:
- *   - NonFungibleCareerEventApplications: イベント応募データ
- *   - NonFungibleCareerMessages: メッセージデータ
- *   - NonFungibleCareerMatches: マッチングデータ
+ * 用途: NonFungibleCareerMessagesテーブル内のデータのみを削除（テーブル自体は削除しません）
  *
  * 注意: このスクリプトはテーブル内のデータのみを削除します。
  *       テーブル構造やインデックスは保持されます。
  *
- * 実行方法: npm run clean-database
+ * 実行方法: node scripts/clean-messages.js
  */
 
 import AWS from "aws-sdk";
@@ -23,20 +19,16 @@ const config = {
 
 if (process.env.DYNAMODB_ENDPOINT) {
   config.endpoint = process.env.DYNAMODB_ENDPOINT;
+  config.credentials = new AWS.Credentials(
+    process.env.AWS_ACCESS_KEY_ID || "dummy",
+    process.env.AWS_SECRET_ACCESS_KEY || "dummy"
+  );
 }
 
 const dynamoDB = new AWS.DynamoDB.DocumentClient(config);
 const dynamoDBClient = new AWS.DynamoDB(config);
 
-// クリーンアップ対象のテーブル
-const tables = [
-  "NonFungibleCareerEventApplications",
-  "NonFungibleCareerMessages",
-  "NonFungibleCareerMatches",
-  "NonFungibleCareerZKPProofs",
-  "NonFungibleCareerJobConditions",
-  "NonFungibleCareerNFTApplications",
-];
+const TABLE_NAME = "NonFungibleCareerMessages";
 
 /**
  * テーブル内のすべてのアイテムを削除
@@ -120,10 +112,10 @@ async function deleteAllItems(tableName) {
 }
 
 /**
- * すべてのテーブルをクリーンアップ
+ * メッセージテーブルをクリーンアップ
  */
-async function cleanDatabase() {
-  console.log("=== DynamoDB データベースクリーンアップ開始 ===\n");
+async function cleanMessages() {
+  console.log("=== メッセージテーブルクリーンアップ開始 ===\n");
   console.log(
     `接続先: ${config.endpoint || `AWS DynamoDB (${config.region})`}\n`
   );
@@ -131,20 +123,14 @@ async function cleanDatabase() {
     "⚠️  注意: テーブル内のデータのみを削除します。テーブル構造は保持されます。\n"
   );
 
-  let totalDeleted = 0;
-
-  for (const tableName of tables) {
-    try {
-      const deleted = await deleteAllItems(tableName);
-      totalDeleted += deleted;
-      console.log("");
-    } catch (error) {
-      console.error(`エラーが発生しました: ${error.message}\n`);
-    }
+  try {
+    const deleted = await deleteAllItems(TABLE_NAME);
+    console.log("\n=== クリーンアップ完了 ===");
+    console.log(`削除件数: ${deleted}件`);
+  } catch (error) {
+    console.error(`エラーが発生しました: ${error.message}\n`);
+    process.exit(1);
   }
-
-  console.log("=== クリーンアップ完了 ===");
-  console.log(`合計削除件数: ${totalDeleted}件`);
 }
 
 // 確認プロンプト（本番環境では注意）
@@ -156,10 +142,10 @@ const rl = readline.createInterface({
 });
 
 rl.question(
-  "⚠️  警告: すべてのテーブル内のデータを削除します（テーブル自体は削除しません）。続行しますか？ (yes/no): ",
+  `⚠️  警告: ${TABLE_NAME} テーブル内のすべてのデータを削除します（テーブル自体は削除しません）。続行しますか？ (yes/no): `,
   (answer) => {
     if (answer.toLowerCase() === "yes" || answer.toLowerCase() === "y") {
-      cleanDatabase()
+      cleanMessages()
         .then(() => {
           console.log("\n✅ クリーンアップが完了しました");
           rl.close();

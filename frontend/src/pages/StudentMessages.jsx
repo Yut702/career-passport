@@ -136,10 +136,10 @@ export default function StudentMessages() {
     };
 
     loadMessages();
-    // 定期的にメッセージを更新（5秒ごと）
-    const interval = setInterval(loadMessages, 5000);
+    // 定期的にメッセージを更新（3秒ごと）
+    const interval = setInterval(loadMessages, 3000);
     return () => clearInterval(interval);
-  }, [selectedCompany, account]);
+  }, [selectedCompany?.conversationId, account]);
 
   const handleStartNewConversation = () => {
     if (!newConversationAddress.trim()) {
@@ -194,49 +194,61 @@ export default function StudentMessages() {
 
       console.log("✅ メッセージ送信成功:", response);
 
+      // 会話IDを取得（新規会話の場合は生成される）
+      const conversationId = response.message?.conversationId;
+
       // 会話IDが設定されていない場合、新しく設定
-      if (
-        !selectedCompany?.conversationId &&
-        response.message?.conversationId
-      ) {
+      if (!selectedCompany?.conversationId && conversationId) {
         setSelectedCompany({
           ...selectedCompany,
-          conversationId: response.message.conversationId,
+          conversationId: conversationId,
         });
       }
 
-      // メッセージをローカルに追加（即座に表示）
-      const tempMessage = {
-        id: `temp-${Date.now()}`,
-        sender: "user",
-        content: newMessage,
-        timestamp: new Date(),
-        read: true,
-      };
-      setMessages([...messages, tempMessage]);
+      // 会話IDを更新
+      const finalConversationId =
+        conversationId || selectedCompany?.conversationId;
+      if (finalConversationId && !selectedCompany?.conversationId) {
+        setSelectedCompany({
+          ...selectedCompany,
+          conversationId: finalConversationId,
+        });
+      }
+
       setNewMessage("");
 
       // メッセージ一覧を再取得（会話IDがある場合のみ）
-      if (selectedCompany?.conversationId) {
-        const messagesResponse = await messageAPI.getMessages(
-          selectedCompany.conversationId
-        );
-        if (messagesResponse.ok && messagesResponse.messages) {
-          const formattedMessages = messagesResponse.messages.map((msg) => ({
-            id: msg.messageId,
-            sender:
-              msg.senderAddress.toLowerCase() === account.toLowerCase()
-                ? "user"
-                : "company",
-            senderAddress: msg.senderAddress, // Fromアドレスを保存
-            senderInfo: msg.senderInfo || { walletAddress: msg.senderAddress },
-            content: msg.content,
-            timestamp: new Date(msg.sentAt),
-            read: msg.read,
-            messageId: msg.messageId,
-          }));
-          setMessages(formattedMessages);
-        }
+      if (finalConversationId) {
+        // データベースへの反映を待ってから再取得
+        setTimeout(async () => {
+          try {
+            const messagesResponse = await messageAPI.getMessages(
+              finalConversationId
+            );
+            if (messagesResponse.ok && messagesResponse.messages) {
+              const formattedMessages = messagesResponse.messages.map(
+                (msg) => ({
+                  id: msg.messageId,
+                  sender:
+                    msg.senderAddress.toLowerCase() === account.toLowerCase()
+                      ? "user"
+                      : "company",
+                  senderAddress: msg.senderAddress,
+                  senderInfo: msg.senderInfo || {
+                    walletAddress: msg.senderAddress,
+                  },
+                  content: msg.content,
+                  timestamp: new Date(msg.sentAt),
+                  read: msg.read,
+                  messageId: msg.messageId,
+                })
+              );
+              setMessages(formattedMessages);
+            }
+          } catch (err) {
+            console.error("Error reloading messages:", err);
+          }
+        }, 300);
       }
     } catch (err) {
       console.error("Error sending message:", err);
