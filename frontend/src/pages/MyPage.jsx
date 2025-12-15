@@ -405,19 +405,61 @@ export default function MyPage() {
       for (let i = 0; i < Number(totalSupply); i++) {
         try {
           const owner = await nftContract.ownerOf(i);
+          // 自分のウォレットアドレスが所有者になっているNFTのみを表示
           if (owner.toLowerCase() === account.toLowerCase()) {
             const tokenURI = await nftContract.tokenURI(i);
             const tokenName = await nftContract.getTokenName(i);
             const rarity = await nftContract.getTokenRarity(i);
             const organizations = await nftContract.getTokenOrganizations(i);
 
+            // getTokenImageTypeが存在しない場合のフォールバック処理
+            let imageType = 0;
+            try {
+              if (typeof nftContract.getTokenImageType === "function") {
+                imageType = await nftContract.getTokenImageType(i);
+              } else {
+                // レアリティに基づいてデフォルト値を設定
+                const rarityLower = rarity.toLowerCase();
+                if (rarityLower === "common") imageType = 10;
+                else if (rarityLower === "rare") imageType = 20;
+                else if (rarityLower === "epic") imageType = 30;
+                else if (rarityLower === "legendary") imageType = 40;
+                else imageType = 10;
+              }
+            } catch (err) {
+              console.warn(
+                `getTokenImageType failed for token ${i}, using default:`,
+                err
+              );
+              // レアリティに基づいてデフォルト値を設定
+              const rarityLower = rarity.toLowerCase();
+              if (rarityLower === "common") imageType = 10;
+              else if (rarityLower === "rare") imageType = 20;
+              else if (rarityLower === "epic") imageType = 30;
+              else if (rarityLower === "legendary") imageType = 40;
+              else imageType = 10;
+            }
+
+            // organizationsが配列でない場合は配列に変換
+            const orgArray = Array.isArray(organizations)
+              ? organizations
+              : organizations
+              ? [organizations]
+              : [];
+
             userNFTs.push({
-              id: i.toString(),
-              tokenId: i,
-              name: tokenName,
-              uri: tokenURI,
-              rarity,
-              organizations: organizations,
+              id: `nft_${i}`, // 一意の ID（URL パラメータとして使用）
+              tokenId: i, // トークン ID（ブロックチェーン上の ID）
+              name: tokenName, // NFT の名前
+              description: "", // 説明（メタデータから取得する場合は tokenURI を使用）
+              rarity: rarity.toLowerCase(), // レアリティ（小文字に変換）
+              organizations: orgArray, // 関連組織の配列
+              contractAddress: nftContract.target, // コントラクトアドレス
+              transactionHash: "", // トランザクションハッシュ（必要に応じて取得）
+              metadataURI: tokenURI, // メタデータ URI
+              mintedAt: new Date().toISOString().split("T")[0], // 発行日（簡易版、実際はブロックタイムスタンプから取得可能）
+              imageType: Number(imageType), // 画像タイプ
+              uri: tokenURI, // 後方互換性のため
             });
           }
         } catch {
