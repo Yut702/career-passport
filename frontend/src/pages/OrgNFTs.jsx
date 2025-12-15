@@ -70,16 +70,8 @@ export default function OrgNFTs() {
       return;
     }
 
-    // organizationがnullの場合は、まだ組織名を読み込み中なので待つ
-    if (organization === null) {
-      return;
-    }
-
     setLoadingStamps(true);
-    console.log(
-      "スタンプを読み込み中... 組織名:",
-      organization || "（すべて）"
-    );
+    console.log("スタンプを読み込み中...");
 
     try {
       // コントラクトの存在確認
@@ -105,7 +97,6 @@ export default function OrgNFTs() {
         try {
           const eventArgs = event.args;
           const eventIssuer = eventArgs.issuer; // 発行者アドレス
-          const eventOrganization = eventArgs.organization;
           const tokenId = eventArgs.tokenId;
 
           // 発行者アドレスが一致する場合のみ追加（接続中のアカウントが発行者）
@@ -114,16 +105,8 @@ export default function OrgNFTs() {
               ? eventIssuer.toLowerCase() === account.toLowerCase()
               : false;
 
-          // 組織名が一致する場合のみ追加（組織名が設定されていない場合はすべて表示）
-          const isOrgMatch =
-            organization && organization.trim() !== ""
-              ? eventOrganization.toLowerCase() === organization.toLowerCase()
-              : true;
-
-          // 発行者アドレスと組織名の両方が一致する場合のみ追加
-          const shouldInclude = isIssuerMatch && isOrgMatch;
-
-          if (shouldInclude && !seenTokenIds.has(tokenId.toString())) {
+          // 発行者アドレスが一致する場合のみ追加
+          if (isIssuerMatch && !seenTokenIds.has(tokenId.toString())) {
             seenTokenIds.add(tokenId.toString());
 
             // スタンプのメタデータを取得
@@ -178,7 +161,7 @@ export default function OrgNFTs() {
     } finally {
       setLoadingStamps(false);
     }
-  }, [stampManagerContract, account, isReady, organization]);
+  }, [stampManagerContract, account, isReady]);
 
   /**
    * 企業が発行したNFTをブロックチェーンから取得
@@ -189,13 +172,8 @@ export default function OrgNFTs() {
       return;
     }
 
-    // organizationがnullの場合は、まだ組織名を読み込み中なので待つ
-    if (organization === null) {
-      return;
-    }
-
     setLoading(true);
-    console.log("NFTを読み込み中... 組織名:", organization || "（すべて）");
+    console.log("NFTを読み込み中...");
 
     try {
       // コントラクトの存在確認
@@ -326,46 +304,25 @@ export default function OrgNFTs() {
     } finally {
       setLoading(false);
     }
-  }, [nftContract, account, isReady, organization]);
+  }, [nftContract, account, isReady]);
 
-  // 組織名を読み込む
+  // 組織名を読み込む（表示用）
   useEffect(() => {
     if (isConnected && account && isReady) {
       loadOrganization();
     } else if (!isConnected || !account) {
-      // ウォレットが接続されていない場合は、組織名をリセット
       setOrganization(null);
       setLoading(false);
-    } else if (isReady && organization === null) {
-      // isReadyがtrueになったが、まだ組織名が取得できていない場合は空文字列を設定
-      console.warn(
-        "コントラクトは準備できていますが、組織名が取得できませんでした。すべてのNFTを表示します。"
-      );
-      setOrganization("");
     }
-  }, [isConnected, account, isReady, loadOrganization, organization]);
+  }, [isConnected, account, isReady, loadOrganization]);
 
-  // スタンプとNFTを読み込む（組織名が取得できた後、または空文字列が設定された後）
+  // スタンプとNFTを読み込む
   useEffect(() => {
-    if (organization !== null && isReady) {
+    if (isConnected && account && isReady) {
       loadStamps();
       loadNFTs();
     }
-  }, [organization, isReady, loadStamps, loadNFTs]);
-
-  // タイムアウト処理：組織名の取得に時間がかかる場合でも、一定時間後に読み込みを完了させる
-  useEffect(() => {
-    if (isConnected && account && isReady && organization === null && loading) {
-      const timeout = setTimeout(() => {
-        console.warn(
-          "組織名の取得がタイムアウトしました。すべてのNFTを表示します。"
-        );
-        setOrganization("");
-      }, 3000); // 3秒後にタイムアウト
-
-      return () => clearTimeout(timeout);
-    }
-  }, [isConnected, account, isReady, organization, loading]);
+  }, [isConnected, account, isReady, loadStamps, loadNFTs]);
 
   if (!isConnected || !account) {
     return (
