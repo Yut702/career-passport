@@ -165,7 +165,34 @@ export default function MyNFTs() {
             const tokenName = await nftContract.getTokenName(i);
             const rarity = await nftContract.getTokenRarity(i);
             const organizations = await nftContract.getTokenOrganizations(i);
-            const imageType = await nftContract.getTokenImageType(i);
+
+            // getTokenImageTypeが存在しない場合のフォールバック処理
+            let imageType = 0;
+            try {
+              if (typeof nftContract.getTokenImageType === "function") {
+                imageType = await nftContract.getTokenImageType(i);
+              } else {
+                // レアリティに基づいてデフォルト値を設定
+                const rarityLower = rarity.toLowerCase();
+                if (rarityLower === "common") imageType = 10;
+                else if (rarityLower === "rare") imageType = 20;
+                else if (rarityLower === "epic") imageType = 30;
+                else if (rarityLower === "legendary") imageType = 40;
+                else imageType = 10;
+              }
+            } catch (err) {
+              console.warn(
+                `getTokenImageType failed for token ${i}, using default:`,
+                err
+              );
+              // レアリティに基づいてデフォルト値を設定
+              const rarityLower = rarity.toLowerCase();
+              if (rarityLower === "common") imageType = 10;
+              else if (rarityLower === "rare") imageType = 20;
+              else if (rarityLower === "epic") imageType = 30;
+              else if (rarityLower === "legendary") imageType = 40;
+              else imageType = 10;
+            }
 
             /**
              * ステップ2-4: NFT データを整形

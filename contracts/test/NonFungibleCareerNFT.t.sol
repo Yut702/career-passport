@@ -25,8 +25,10 @@ contract NonFungibleCareerNFTTest is Test {
         string[] memory organizations = new string[](1);
         organizations[0] = unicode"東京大学";
 
-        // NFTを発行
-        uint256 tokenId = nft.mint(user, uri, name, rarity, organizations);
+        // NFTを発行（issuerとimageTypeを追加）
+        address issuer = owner; // 発行者は所有者
+        uint8 imageType = 0; // 0の場合はレアリティに基づいて自動決定
+        uint256 tokenId = nft.mint(user, uri, name, rarity, organizations, issuer, imageType);
 
         // 発行されたNFTの所有者が正しいか確認
         assertEq(nft.ownerOf(tokenId), user);
@@ -47,8 +49,10 @@ contract NonFungibleCareerNFTTest is Test {
         string memory rarity = "Common";
         string[] memory organizations = new string[](0);
 
-        // NFTを発行
-        uint256 tokenId = nft.mint(user, uri, name, rarity, organizations);
+        // NFTを発行（issuerとimageTypeを追加）
+        address issuer = owner; // 発行者は所有者
+        uint8 imageType = 0; // 0の場合はレアリティに基づいて自動決定
+        uint256 tokenId = nft.mint(user, uri, name, rarity, organizations, issuer, imageType);
 
         // ユーザーとして実行するように設定
         vm.prank(user);
@@ -69,11 +73,13 @@ contract NonFungibleCareerNFTTest is Test {
         string[] memory organizations = new string[](0);
 
         // 1つ目のNFTを発行
-        nft.mint(user, uri, name, rarity, organizations);
+        address issuer = owner;
+        uint8 imageType = 0;
+        nft.mint(user, uri, name, rarity, organizations, issuer, imageType);
         assertEq(nft.getTotalSupply(), 1);
 
         // 2つ目のNFTを発行
-        nft.mint(user, uri, name, rarity, organizations);
+        nft.mint(user, uri, name, rarity, organizations, issuer, imageType);
         assertEq(nft.getTotalSupply(), 2);
     }
 
@@ -87,8 +93,10 @@ contract NonFungibleCareerNFTTest is Test {
         // 所有者以外のアドレスとして実行するように設定
         vm.prank(address(0x999));
         // "Ownable: caller is not the owner"というエラーが発生することを期待
+        address issuer = owner;
+        uint8 imageType = 0;
         vm.expectRevert();
-        nft.mint(user, uri, name, rarity, organizations);
+        nft.mint(user, uri, name, rarity, organizations, issuer, imageType);
     }
 
     function test_TokenIdIncrement() public {
@@ -99,15 +107,17 @@ contract NonFungibleCareerNFTTest is Test {
         string[] memory organizations = new string[](0);
 
         // 1つ目のNFTを発行（IDは0）
-        uint256 tokenId1 = nft.mint(user, uri, name, rarity, organizations);
+        address issuer = owner;
+        uint8 imageType = 0;
+        uint256 tokenId1 = nft.mint(user, uri, name, rarity, organizations, issuer, imageType);
         assertEq(tokenId1, 0);
 
         // 2つ目のNFTを発行（IDは1）
-        uint256 tokenId2 = nft.mint(user, uri, name, rarity, organizations);
+        uint256 tokenId2 = nft.mint(user, uri, name, rarity, organizations, issuer, imageType);
         assertEq(tokenId2, 1);
 
         // 3つ目のNFTを発行（IDは2）
-        uint256 tokenId3 = nft.mint(user, uri, name, rarity, organizations);
+        uint256 tokenId3 = nft.mint(user, uri, name, rarity, organizations, issuer, imageType);
         assertEq(tokenId3, 2);
     }
 
@@ -121,7 +131,9 @@ contract NonFungibleCareerNFTTest is Test {
         organizations[1] = unicode"株式会社ABC";
         organizations[2] = unicode"株式会社XYZ";
 
-        uint256 tokenId = nft.mint(user, uri, name, rarity, organizations);
+        address issuer = owner;
+        uint8 imageType = 0;
+        uint256 tokenId = nft.mint(user, uri, name, rarity, organizations, issuer, imageType);
 
         // 関連組織の配列が正しく保存されているか確認
         string[] memory retrievedOrgs = nft.getTokenOrganizations(tokenId);

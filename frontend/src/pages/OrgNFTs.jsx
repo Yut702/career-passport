@@ -234,50 +234,82 @@ export default function OrgNFTs() {
 
       for (let i = 0; i < totalSupplyNumber; i++) {
         try {
-          // NFTの組織名を取得
+          // まず発行者アドレスを取得してフィルタリング（効率化のため）
+          let issuer = null;
+          try {
+            if (typeof nftContract.getTokenIssuer === "function") {
+              issuer = await nftContract.getTokenIssuer(i);
+            } else {
+              // getTokenIssuerが存在しない場合は、ownerをissuerとして扱う（フォールバック）
+              const owner = await nftContract.ownerOf(i);
+              issuer = owner;
+            }
+          } catch (err) {
+            console.warn(
+              `getTokenIssuer failed for token ${i}, skipping:`,
+              err
+            );
+            continue; // 発行者が取得できない場合はスキップ
+          }
+
+          // 発行者アドレスが一致する場合のみ処理を続行（ログインアドレスが作成者アドレスになっているNFTのみ表示）
+          const isIssuerMatch =
+            issuer && account
+              ? issuer.toLowerCase() === account.toLowerCase()
+              : false;
+
+          if (!isIssuerMatch) {
+            continue; // 発行者が一致しない場合はスキップ
+          }
+
+          // NFTの詳細情報を取得
+          const tokenURI = await nftContract.tokenURI(i);
+          const tokenName = await nftContract.getTokenName(i);
+          const rarity = await nftContract.getTokenRarity(i);
+          const owner = await nftContract.ownerOf(i);
           const organizations = await nftContract.getTokenOrganizations(i);
 
-          // 組織名が設定されている場合はフィルタリング、設定されていない場合はすべて表示
-          const shouldInclude =
-            organization && organization.trim() !== ""
-              ? organizations.some(
-                  (org) => org.toLowerCase() === organization.toLowerCase()
-                )
-              : true; // 組織名が設定されていない場合はすべて表示
-
-          if (shouldInclude) {
-            // NFTの詳細情報を取得
-            const tokenURI = await nftContract.tokenURI(i);
-            const tokenName = await nftContract.getTokenName(i);
-            const rarity = await nftContract.getTokenRarity(i);
-            const owner = await nftContract.ownerOf(i);
-            const imageType = await nftContract.getTokenImageType(i);
-            const issuer = await nftContract.getTokenIssuer(i); // 発行者アドレスを取得
-
-            // 発行者アドレスが一致する場合のみ追加（接続中のアカウントが発行者）
-            const isIssuerMatch =
-              issuer && account
-                ? issuer.toLowerCase() === account.toLowerCase()
-                : false;
-
-            if (!isIssuerMatch) {
-              continue; // 発行者が一致しない場合はスキップ
+          // getTokenImageTypeが存在しない場合のフォールバック処理
+          let imageType = 0;
+          try {
+            if (typeof nftContract.getTokenImageType === "function") {
+              imageType = await nftContract.getTokenImageType(i);
+            } else {
+              // レアリティに基づいてデフォルト値を設定
+              const rarityLower = rarity.toLowerCase();
+              if (rarityLower === "common") imageType = 10;
+              else if (rarityLower === "rare") imageType = 20;
+              else if (rarityLower === "epic") imageType = 30;
+              else if (rarityLower === "legendary") imageType = 40;
+              else imageType = 10;
             }
-
-            issuedNFTs.push({
-              id: `nft_${i}`,
-              tokenId: i,
-              name: tokenName,
-              description: "", // 説明（メタデータから取得する場合は tokenURI を使用）
-              rarity: rarity.toLowerCase(),
-              organizations: organizations,
-              contractAddress: nftContract.target,
-              metadataURI: tokenURI,
-              owner: owner,
-              issuedAt: new Date().toISOString().split("T")[0], // 発行日（簡易版）
-              imageType: Number(imageType),
-            });
+          } catch (err) {
+            console.warn(
+              `getTokenImageType failed for token ${i}, using default:`,
+              err
+            );
+            // レアリティに基づいてデフォルト値を設定
+            const rarityLower = rarity.toLowerCase();
+            if (rarityLower === "common") imageType = 10;
+            else if (rarityLower === "rare") imageType = 20;
+            else if (rarityLower === "epic") imageType = 30;
+            else if (rarityLower === "legendary") imageType = 40;
+            else imageType = 10;
           }
+
+          issuedNFTs.push({
+            id: `nft_${i}`,
+            tokenId: i,
+            name: tokenName,
+            description: "", // 説明（メタデータから取得する場合は tokenURI を使用）
+            rarity: rarity.toLowerCase(),
+            organizations: organizations,
+            contractAddress: nftContract.target,
+            metadataURI: tokenURI,
+            owner: owner,
+            issuedAt: new Date().toISOString().split("T")[0], // 発行日（簡易版）
+            imageType: Number(imageType),
+          });
         } catch (err) {
           // トークンが存在しない場合はスキップ
           console.warn(`Token ${i} does not exist:`, err);
