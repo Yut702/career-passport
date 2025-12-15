@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useWalletConnect } from "../hooks/useWalletConnect";
-import { messageAPI } from "../lib/api";
+import { messageAPI, matchAPI } from "../lib/api";
 import { storage } from "../lib/storage";
 import { formatAddress } from "../lib/utils";
 
@@ -18,13 +18,67 @@ export default function StudentMessages() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState(null);
-  const [approvedCompanies, setApprovedCompanies] = useState([]); // 承認された企業リスト
+  const [approvedCompanies, setApprovedCompanies] = useState([]); // 承認された企業リスト（マッチング済みのみ）
 
-  // 承認された企業リストを読み込む
+  // マッチングしている企業リストを読み込む
   useEffect(() => {
-    const companies = storage.getApprovedCompanies();
-    setApprovedCompanies(companies);
-  }, []);
+    const loadMatchedCompanies = async () => {
+      if (!isConnected || !account) {
+        setApprovedCompanies([]);
+        return;
+      }
+
+      try {
+        // マッチング情報を取得
+        const matchesResponse = await matchAPI.getStudentMatches(account);
+        console.log("📊 マッチング情報取得結果:", {
+          ok: matchesResponse.ok,
+          matchesCount: matchesResponse.matches?.length || 0,
+          matches: matchesResponse.matches,
+        });
+
+        if (matchesResponse.ok && matchesResponse.matches) {
+          // アクティブなマッチングの企業アドレスを抽出
+          const matchedOrgAddresses = new Set(
+            matchesResponse.matches
+              .filter((m) => m.status === "active")
+              .map((m) => m.orgAddress.toLowerCase())
+          );
+
+          console.log(
+            "✅ マッチングしている企業アドレス:",
+            Array.from(matchedOrgAddresses)
+          );
+
+          // 承認された企業リストから、マッチングしている企業だけをフィルタリング
+          const allCompanies = storage.getApprovedCompanies();
+          console.log("📋 承認された企業リスト:", allCompanies.length, "件");
+
+          const matchedCompanies = allCompanies.filter((company) =>
+            matchedOrgAddresses.has(company.walletAddress.toLowerCase())
+          );
+
+          console.log(
+            "🎯 フィルタリング後の企業数:",
+            matchedCompanies.length,
+            "件"
+          );
+          setApprovedCompanies(matchedCompanies);
+        } else {
+          console.warn(
+            "⚠️ マッチング情報が取得できませんでした:",
+            matchesResponse
+          );
+          setApprovedCompanies([]);
+        }
+      } catch (err) {
+        console.error("❌ マッチング情報の取得エラー:", err);
+        setApprovedCompanies([]);
+      }
+    };
+
+    loadMatchedCompanies();
+  }, [isConnected, account]);
 
   // 会話一覧を取得
   useEffect(() => {
@@ -101,9 +155,11 @@ export default function StudentMessages() {
     }
 
     const loadMessages = async () => {
+      if (!account) return;
       try {
         const response = await messageAPI.getMessages(
-          selectedCompany.conversationId
+          selectedCompany.conversationId,
+          account
         );
         if (response.ok && response.messages) {
           // メッセージをフォーマット（Fromアドレス情報を含む）
@@ -218,12 +274,13 @@ export default function StudentMessages() {
       setNewMessage("");
 
       // メッセージ一覧を再取得（会話IDがある場合のみ）
-      if (finalConversationId) {
+      if (finalConversationId && account) {
         // データベースへの反映を待ってから再取得
         setTimeout(async () => {
           try {
             const messagesResponse = await messageAPI.getMessages(
-              finalConversationId
+              finalConversationId,
+              account
             );
             if (messagesResponse.ok && messagesResponse.messages) {
               const formattedMessages = messagesResponse.messages.map(
@@ -277,40 +334,7 @@ export default function StudentMessages() {
             )}
             {isConnected && (
               <div className="p-2 border-b border-gray-200 space-y-2">
-                {/* 承認された企業から選択 */}
-                {approvedCompanies.length > 0 && (
-                  <div>
-                    <p className="text-xs text-gray-600 mb-2 font-medium">
-                      📋 承認された企業から選択
-                    </p>
-                    <select
-                      onChange={(e) => {
-                        const selected = approvedCompanies.find(
-                          (c) => c.walletAddress === e.target.value
-                        );
-                        if (selected) {
-                          setSelectedCompany({
-                            walletAddress: selected.walletAddress,
-                            conversationId: null,
-                          });
-                          setShowNewConversation(false);
-                        }
-                      }}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
-                      defaultValue=""
-                    >
-                      <option value="">企業を選択...</option>
-                      {approvedCompanies.map((company) => (
-                        <option
-                          key={company.walletAddress}
-                          value={company.walletAddress}
-                        >
-                          {company.companyName} ({company.eventTitle})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+                {/* 新しい会話を開始 */}
                 <button
                   onClick={() => setShowNewConversation(!showNewConversation)}
                   className="w-full px-3 py-2 text-sm bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors font-medium"
@@ -318,19 +342,54 @@ export default function StudentMessages() {
                   {showNewConversation ? "キャンセル" : "+ 新しい会話を開始"}
                 </button>
                 {showNewConversation && (
-                  <div className="mt-2 p-3 bg-white rounded-lg border border-gray-200">
-                    <input
-                      type="text"
-                      value={newConversationAddress}
-                      onChange={(e) =>
-                        setNewConversationAddress(e.target.value)
-                      }
-                      placeholder="企業のウォレットアドレス（0x...）"
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                    />
+                  <div className="mt-2 p-3 bg-white rounded-lg border border-gray-200 space-y-2">
+                    {/* 承認された企業から選択（補助的） */}
+                    {approvedCompanies.length > 0 && (
+                      <div>
+                        <p className="text-xs text-gray-600 mb-1 font-medium">
+                          📋 承認された企業から選択（任意）
+                        </p>
+                        <select
+                          onChange={(e) => {
+                            const selected = approvedCompanies.find(
+                              (c) => c.walletAddress === e.target.value
+                            );
+                            if (selected) {
+                              setNewConversationAddress(selected.walletAddress);
+                            }
+                          }}
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
+                          defaultValue=""
+                        >
+                          <option value="">企業を選択...</option>
+                          {approvedCompanies.map((company) => (
+                            <option
+                              key={company.walletAddress}
+                              value={company.walletAddress}
+                            >
+                              {company.companyName} ({company.eventTitle})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-xs text-gray-600 mb-1 font-medium">
+                        企業のウォレットアドレス
+                      </p>
+                      <input
+                        type="text"
+                        value={newConversationAddress}
+                        onChange={(e) =>
+                          setNewConversationAddress(e.target.value)
+                        }
+                        placeholder="0x..."
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                      />
+                    </div>
                     <button
                       onClick={handleStartNewConversation}
-                      className="mt-2 w-full px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                      className="w-full px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
                     >
                       会話を開始
                     </button>
@@ -340,72 +399,80 @@ export default function StudentMessages() {
             )}
             {loading ? (
               <div className="p-4 text-center text-gray-500">読み込み中...</div>
-            ) : conversations.length === 0 ? (
-              <div className="p-4 text-center text-gray-500">
-                会話がありません。上記の「新しい会話を開始」から始められます。
-              </div>
             ) : (
-              <div className="divide-y divide-gray-200">
-                {conversations.map((conv) => (
-                  <button
-                    key={conv.conversationId}
-                    onClick={() =>
-                      setSelectedCompany({
-                        walletAddress: conv.otherAddress,
-                        conversationId: conv.conversationId,
-                      })
-                    }
-                    className={`w-full p-4 text-left hover:bg-white transition-colors ${
-                      selectedCompany?.conversationId === conv.conversationId
-                        ? "bg-white border-r-4 border-blue-600"
-                        : ""
-                    }`}
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex-1">
-                        <div className="font-medium text-gray-900 mb-1">
-                          {(() => {
-                            const company = approvedCompanies.find(
-                              (c) =>
-                                c.walletAddress.toLowerCase() ===
-                                conv.otherAddress.toLowerCase()
-                            );
-                            return company
-                              ? company.companyName
-                              : formatAddress(conv.otherAddress);
-                          })()}
+              <>
+                {/* 会話一覧（優先表示） */}
+                {conversations.length > 0 && (
+                  <div className="divide-y divide-gray-200">
+                    {conversations.map((conv) => (
+                      <button
+                        key={conv.conversationId}
+                        onClick={() =>
+                          setSelectedCompany({
+                            walletAddress: conv.otherAddress,
+                            conversationId: conv.conversationId,
+                          })
+                        }
+                        className={`w-full p-4 text-left hover:bg-white transition-colors ${
+                          selectedCompany?.conversationId ===
+                          conv.conversationId
+                            ? "bg-white border-r-4 border-blue-600"
+                            : ""
+                        }`}
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900 mb-1">
+                              {(() => {
+                                const company = approvedCompanies.find(
+                                  (c) =>
+                                    c.walletAddress.toLowerCase() ===
+                                    conv.otherAddress.toLowerCase()
+                                );
+                                return company
+                                  ? company.companyName
+                                  : formatAddress(conv.otherAddress);
+                              })()}
+                            </div>
+                            <div className="flex items-center space-x-2 text-xs text-gray-500">
+                              <span className="font-mono">
+                                {formatAddress(conv.otherAddress)}
+                              </span>
+                              <span className="w-1 h-1 bg-green-500 rounded-full"></span>
+                            </div>
+                          </div>
+                          {conv.unreadCount > 0 && (
+                            <span className="bg-blue-600 text-white text-xs rounded-full px-2 py-1">
+                              {conv.unreadCount}
+                            </span>
+                          )}
                         </div>
-                        <div className="flex items-center space-x-2 text-xs text-gray-500">
-                          <span className="font-mono">
-                            {formatAddress(conv.otherAddress)}
-                          </span>
-                          <span className="w-1 h-1 bg-green-500 rounded-full"></span>
+                        <div className="flex items-center justify-between mt-2">
+                          <div className="text-xs text-gray-500 truncate flex-1 mr-2">
+                            {conv.latestMessage?.content || ""}
+                          </div>
+                          <div className="text-xs text-gray-400">
+                            {conv.latestMessage?.sentAt
+                              ? new Date(
+                                  conv.latestMessage.sentAt
+                                ).toLocaleTimeString("ja-JP", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })
+                              : ""}
+                          </div>
                         </div>
-                      </div>
-                      {conv.unreadCount > 0 && (
-                        <span className="bg-blue-600 text-white text-xs rounded-full px-2 py-1">
-                          {conv.unreadCount}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center justify-between mt-2">
-                      <div className="text-xs text-gray-500 truncate flex-1 mr-2">
-                        {conv.latestMessage?.content || ""}
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        {conv.latestMessage?.sentAt
-                          ? new Date(
-                              conv.latestMessage.sentAt
-                            ).toLocaleTimeString("ja-JP", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
-                          : ""}
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {/* 会話がない場合のメッセージ */}
+                {conversations.length === 0 && (
+                  <div className="p-4 text-center text-gray-500">
+                    会話がありません。上記の「新しい会話を開始」から始められます。
+                  </div>
+                )}
+              </>
             )}
           </div>
 

@@ -73,14 +73,29 @@ router.get("/conversations", async (req, res) => {
 /**
  * GET /api/messages/conversations/:conversationId
  * 会話のメッセージ一覧を取得
+ * ログインしているアドレス（walletAddress）が送信者または受信者であるメッセージのみを返す
  */
 router.get("/conversations/:conversationId", async (req, res) => {
   try {
     const { conversationId } = req.params;
+    const { walletAddress } = req.query;
+
+    if (!walletAddress) {
+      return res.status(400).json({ error: "walletAddress is required" });
+    }
+
     const messages = await getMessagesByConversation(conversationId);
+    const address = walletAddress.toLowerCase();
+
+    // ログインしているアドレスが送信者または受信者であるメッセージのみをフィルタリング
+    const filteredMessages = messages.filter(
+      (msg) =>
+        msg.senderAddress.toLowerCase() === address ||
+        msg.receiverAddress.toLowerCase() === address
+    );
 
     // メッセージに送信者情報を追加（Fromアドレスを明確に表示するため）
-    const messagesWithSenderInfo = messages.map((msg) => ({
+    const messagesWithSenderInfo = filteredMessages.map((msg) => ({
       ...msg,
       senderInfo: {
         walletAddress: msg.senderAddress,

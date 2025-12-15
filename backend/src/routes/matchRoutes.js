@@ -48,16 +48,17 @@ router.post("/", async (req, res) => {
       zkpProofHash,
     });
 
-    // マッチング作成成功後、自動的に学生から企業への初期メッセージを送信
+    // マッチング作成成功後、自動的に企業から学生への初期メッセージを送信
+    // これにより、双方でメッセージタブでやり取りできるようになる
     try {
       const initialMessage = `マッチングが成立しました。よろしくお願いします。`;
       await createMessage({
-        senderAddress: studentAddress,
-        receiverAddress: orgAddress,
+        senderAddress: orgAddress, // 企業側から送信
+        receiverAddress: studentAddress, // 学生側へ送信
         content: initialMessage,
       });
       console.log(
-        `✅ マッチング作成時の自動メッセージ送信成功: ${studentAddress} -> ${orgAddress}`
+        `✅ マッチング作成時の自動メッセージ送信成功: ${orgAddress} -> ${studentAddress}`
       );
     } catch (messageError) {
       // メッセージ送信に失敗してもマッチング作成は成功とする
@@ -154,7 +155,7 @@ router.patch("/:matchId/status", async (req, res) => {
 /**
  * GET /api/matches/search/student
  * 学生側から見たマッチング候補を検索
- * カテゴリが一致すればマッチング候補として返す（緩い条件）
+ * 条件を緩和：採用条件が設定されている企業は全て候補として表示
  */
 router.get("/search/student", async (req, res) => {
   try {
@@ -163,11 +164,8 @@ router.get("/search/student", async (req, res) => {
       return res.status(400).json({ error: "walletAddress is required" });
     }
 
-    // 学生の求人条件を取得
+    // 学生の求人条件を取得（オプション）
     const studentCondition = await getJobConditionByWallet(walletAddress);
-    if (!studentCondition || !studentCondition.positionCategory) {
-      return res.json({ ok: true, candidates: [] });
-    }
 
     // 既存のマッチングを取得（重複を避けるため）
     const existingMatches = await getMatchesByStudent(walletAddress);
@@ -181,7 +179,7 @@ router.get("/search/student", async (req, res) => {
     const allRecruitmentConditions = await getAllRecruitmentConditions();
 
     // マッチング候補をフィルタリング
-    // カテゴリが一致すればマッチング候補とする（緩い条件）
+    // 採用条件が設定されている企業は全て候補として表示（条件を大幅に緩和）
     const candidates = allRecruitmentConditions
       .filter((orgCondition) => {
         // 既にマッチング済みの企業は除外
@@ -189,22 +187,31 @@ router.get("/search/student", async (req, res) => {
           return false;
         }
 
-        // カテゴリが一致するかチェック
-        if (
-          orgCondition.positionCategory &&
-          studentCondition.positionCategory &&
-          orgCondition.positionCategory === studentCondition.positionCategory
-        ) {
+        // 採用条件が設定されていれば候補とする（条件を緩和）
+        // orgAddressが存在すれば採用条件が設定されているとみなす
+        if (orgCondition.orgAddress) {
           return true;
         }
 
         return false;
       })
-      .map((orgCondition) => ({
-        orgAddress: orgCondition.orgAddress,
-        condition: orgCondition,
-        matchScore: 100, // カテゴリが一致すれば100%とする
-      }));
+      .map((orgCondition) => {
+        // マッチングスコアを計算（カテゴリが一致する場合は100%、不一致でも50%）
+        let matchScore = 50; // デフォルトスコア
+        if (
+          studentCondition?.positionCategory &&
+          orgCondition.positionCategory &&
+          studentCondition.positionCategory === orgCondition.positionCategory
+        ) {
+          matchScore = 100; // カテゴリが一致する場合は100%
+        }
+
+        return {
+          orgAddress: orgCondition.orgAddress,
+          condition: orgCondition,
+          matchScore: matchScore,
+        };
+      });
 
     res.json({ ok: true, candidates });
   } catch (err) {
@@ -216,7 +223,7 @@ router.get("/search/student", async (req, res) => {
 /**
  * GET /api/matches/search/org
  * 企業側から見たマッチング候補を検索
- * カテゴリが一致すればマッチング候補として返す（緩い条件）
+ * 条件を緩和：求人条件が設定されている学生は全て候補として表示
  */
 router.get("/search/org", async (req, res) => {
   try {
@@ -225,11 +232,8 @@ router.get("/search/org", async (req, res) => {
       return res.status(400).json({ error: "walletAddress is required" });
     }
 
-    // 企業の採用条件を取得
+    // 企業の採用条件を取得（オプション）
     const orgCondition = await getRecruitmentConditionByOrg(walletAddress);
-    if (!orgCondition || !orgCondition.positionCategory) {
-      return res.json({ ok: true, candidates: [] });
-    }
 
     // 既存のマッチングを取得（重複を避けるため）
     const existingMatches = await getMatchesByOrg(walletAddress);
@@ -243,7 +247,7 @@ router.get("/search/org", async (req, res) => {
     const allJobConditions = await getAllJobConditions();
 
     // マッチング候補をフィルタリング
-    // カテゴリが一致すればマッチング候補とする（緩い条件）
+    // 求人条件が設定されている学生は全て候補として表示（条件を大幅に緩和）
     const candidates = allJobConditions
       .filter((studentCondition) => {
         // 既にマッチング済みの学生は除外
@@ -255,22 +259,31 @@ router.get("/search/org", async (req, res) => {
           return false;
         }
 
-        // カテゴリが一致するかチェック
-        if (
-          studentCondition.positionCategory &&
-          orgCondition.positionCategory &&
-          studentCondition.positionCategory === orgCondition.positionCategory
-        ) {
+        // 求人条件が設定されていれば候補とする（条件を緩和）
+        // walletAddressが存在すれば求人条件が設定されているとみなす
+        if (studentCondition.walletAddress) {
           return true;
         }
 
         return false;
       })
-      .map((studentCondition) => ({
-        studentAddress: studentCondition.walletAddress,
-        condition: studentCondition,
-        matchScore: 100, // カテゴリが一致すれば100%とする
-      }));
+      .map((studentCondition) => {
+        // マッチングスコアを計算（カテゴリが一致する場合は100%、不一致でも50%）
+        let matchScore = 50; // デフォルトスコア
+        if (
+          orgCondition?.positionCategory &&
+          studentCondition.positionCategory &&
+          studentCondition.positionCategory === orgCondition.positionCategory
+        ) {
+          matchScore = 100; // カテゴリが一致する場合は100%
+        }
+
+        return {
+          studentAddress: studentCondition.walletAddress,
+          condition: studentCondition,
+          matchScore: matchScore,
+        };
+      });
 
     res.json({ ok: true, candidates });
   } catch (err) {
