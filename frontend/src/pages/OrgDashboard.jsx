@@ -31,6 +31,7 @@ export default function OrgDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [organization, setOrganization] = useState(null); // 組織名
+  const [organizationLoaded, setOrganizationLoaded] = useState(false); // 組織名の読み込み完了フラグ
 
   /**
    * ローカルストレージからデータを読み込む関数（フォールバック）
@@ -138,6 +139,7 @@ export default function OrgDashboard() {
         console.warn("loadOrganization: 組織名が設定されていません。");
         setOrganization("");
       }
+      setOrganizationLoaded(true);
     } catch (err) {
       // コントラクトが存在しない、またはデータが存在しない場合は初期状態として扱う
       if (
@@ -151,6 +153,7 @@ export default function OrgDashboard() {
       }
       console.error("loadOrganization: エラー", err);
       setOrganization("");
+      setOrganizationLoaded(true);
     }
   }, [stampManagerContract, account, isReady]);
 
@@ -183,7 +186,13 @@ export default function OrgDashboard() {
       return;
     }
 
-    console.log("loadData: データを読み込み開始", { account });
+    // organizationがnullの場合は、まだ組織名を読み込み中なので待つ
+    if (organization === null) {
+      console.log("loadData: 組織名の読み込み待ち中...");
+      return;
+    }
+
+    console.log("loadData: データを読み込み開始", { account, organization });
     setLoading(true);
     setError(null);
 
@@ -202,6 +211,7 @@ export default function OrgDashboard() {
         try {
           const eventArgs = event.args;
           const eventIssuer = eventArgs.issuer; // 発行者アドレス
+          const eventOrganization = eventArgs.organization;
           const tokenId = eventArgs.tokenId;
 
           // 発行者アドレスが一致する場合のみ追加（接続中のアカウントが発行者）
@@ -210,8 +220,16 @@ export default function OrgDashboard() {
               ? eventIssuer.toLowerCase() === account.toLowerCase()
               : false;
 
-          // 発行者アドレスが一致する場合のみ追加（組織名は考慮しない）
-          if (isIssuerMatch && !seenTokenIds.has(tokenId.toString())) {
+          // 組織名が一致する場合のみ追加（組織名が設定されていない場合はすべて表示）
+          const isOrgMatch =
+            organization && organization.trim() !== ""
+              ? eventOrganization.toLowerCase() === organization.toLowerCase()
+              : true;
+
+          // 発行者アドレスと組織名の両方が一致する場合のみ追加
+          const shouldInclude = isIssuerMatch && isOrgMatch;
+
+          if (shouldInclude && !seenTokenIds.has(tokenId.toString())) {
             seenTokenIds.add(tokenId.toString());
 
             // スタンプのメタデータを取得
@@ -294,17 +312,26 @@ export default function OrgDashboard() {
 
       for (let i = 0; i < totalSupplyNumber; i++) {
         try {
-          // NFTの発行者アドレスを取得
+          // NFTの組織名と発行者アドレスを取得
+          const organizations = await nftContract.getTokenOrganizations(i);
           const issuer = await nftContract.getTokenIssuer(i); // 発行者アドレスを取得
 
-          // 発行者アドレスが一致する場合のみカウント（接続中のアカウントが発行者）
+          // 発行者アドレスが一致する場合のみ追加（接続中のアカウントが発行者）
           const isIssuerMatch =
             issuer && account
               ? issuer.toLowerCase() === account.toLowerCase()
               : false;
 
-          // 発行者アドレスが一致する場合のみカウント（組織名は考慮しない）
-          if (isIssuerMatch) {
+          // 組織名が設定されている場合はフィルタリング
+          const isOrgMatch =
+            organization && organization.trim() !== ""
+              ? organizations.some(
+                  (org) => org.toLowerCase() === organization.toLowerCase()
+                )
+              : true; // 組織名が設定されていない場合は全てカウント
+
+          // 発行者アドレスと組織名の両方が一致する場合のみカウント
+          if (isIssuerMatch && isOrgMatch) {
             totalNFTs++;
           }
         } catch (err) {
@@ -323,6 +350,7 @@ export default function OrgDashboard() {
       };
       console.log("loadData: 統計情報を設定", newStats, {
         account,
+        organization,
       });
       setStats(newStats);
 
@@ -362,6 +390,7 @@ export default function OrgDashboard() {
     nftContract,
     account,
     isReady,
+    organization,
     loadDataFromStorage,
   ]);
 
@@ -373,9 +402,11 @@ export default function OrgDashboard() {
     if (isConnected && account && isReady) {
       // accountが変更されたときは、organizationをnullにリセットしてから再取得
       setOrganization(null);
+      setOrganizationLoaded(false);
       loadOrganization();
     } else if (!isConnected || !account) {
       setOrganization(null);
+      setOrganizationLoaded(false);
     }
   }, [isConnected, account, isReady, loadOrganization]);
 
@@ -388,7 +419,7 @@ export default function OrgDashboard() {
    * アカウントが変更された場合も、データを再読み込みします。
    */
   useEffect(() => {
-    if (isConnected && isReady && account) {
+    if (isConnected && isReady && account && organizationLoaded) {
       // ブロックチェーンから読み込む
       loadData();
     } else if (!isConnected) {
@@ -399,6 +430,7 @@ export default function OrgDashboard() {
     isConnected,
     isReady,
     account,
+    organizationLoaded,
     loadData,
     loadDataFromStorage,
   ]);
