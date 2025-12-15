@@ -13,6 +13,7 @@ export default function OrgNFTs() {
   const [loading, setLoading] = useState(true);
   const [loadingStamps, setLoadingStamps] = useState(true);
   const [organization, setOrganization] = useState(null);
+  const [organizationLoaded, setOrganizationLoaded] = useState(false);
 
   /**
    * 企業の組織名を取得
@@ -44,6 +45,7 @@ export default function OrgNFTs() {
         console.warn("組織名が設定されていません。すべてのNFTを表示します。");
         setOrganization("");
       }
+      setOrganizationLoaded(true);
     } catch (err) {
       // コントラクトが存在しない、またはデータが存在しない場合は初期状態として扱う
       if (
@@ -58,6 +60,7 @@ export default function OrgNFTs() {
       console.error("Error loading organization:", err);
       // エラーが発生した場合も空文字列を設定して続行
       setOrganization("");
+      setOrganizationLoaded(true);
     }
   }, [stampManagerContract, account, isReady]);
 
@@ -331,10 +334,12 @@ export default function OrgNFTs() {
   // 組織名を読み込む
   useEffect(() => {
     if (isConnected && account && isReady) {
+      setOrganizationLoaded(false);
       loadOrganization();
     } else if (!isConnected || !account) {
       // ウォレットが接続されていない場合は、組織名をリセット
       setOrganization(null);
+      setOrganizationLoaded(false);
       setLoading(false);
     } else if (isReady && organization === null) {
       // isReadyがtrueになったが、まだ組織名が取得できていない場合は空文字列を設定
@@ -342,30 +347,32 @@ export default function OrgNFTs() {
         "コントラクトは準備できていますが、組織名が取得できませんでした。すべてのNFTを表示します。"
       );
       setOrganization("");
+      setOrganizationLoaded(true);
     }
   }, [isConnected, account, isReady, loadOrganization, organization]);
 
   // スタンプとNFTを読み込む（組織名が取得できた後、または空文字列が設定された後）
   useEffect(() => {
-    if (organization !== null && isReady) {
+    if (organizationLoaded && isReady) {
       loadStamps();
       loadNFTs();
     }
-  }, [organization, isReady, loadStamps, loadNFTs]);
+  }, [organizationLoaded, isReady, loadStamps, loadNFTs]);
 
   // タイムアウト処理：組織名の取得に時間がかかる場合でも、一定時間後に読み込みを完了させる
   useEffect(() => {
-    if (isConnected && account && isReady && organization === null && loading) {
+    if (isConnected && account && isReady && !organizationLoaded && loading) {
       const timeout = setTimeout(() => {
         console.warn(
           "組織名の取得がタイムアウトしました。すべてのNFTを表示します。"
         );
         setOrganization("");
+        setOrganizationLoaded(true);
       }, 3000); // 3秒後にタイムアウト
 
       return () => clearTimeout(timeout);
     }
-  }, [isConnected, account, isReady, organization, loading]);
+  }, [isConnected, account, isReady, organizationLoaded, loading]);
 
   if (!isConnected || !account) {
     return (

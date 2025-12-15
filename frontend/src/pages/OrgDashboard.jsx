@@ -31,6 +31,7 @@ export default function OrgDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [organization, setOrganization] = useState(null); // 組織名
+  const [organizationLoaded, setOrganizationLoaded] = useState(false); // 組織名の読み込み完了フラグ
 
   /**
    * ローカルストレージからデータを読み込む関数（フォールバック）
@@ -138,6 +139,7 @@ export default function OrgDashboard() {
         console.warn("loadOrganization: 組織名が設定されていません。");
         setOrganization("");
       }
+      setOrganizationLoaded(true);
     } catch (err) {
       // コントラクトが存在しない、またはデータが存在しない場合は初期状態として扱う
       if (
@@ -151,6 +153,7 @@ export default function OrgDashboard() {
       }
       console.error("loadOrganization: エラー", err);
       setOrganization("");
+      setOrganizationLoaded(true);
     }
   }, [stampManagerContract, account, isReady]);
 
@@ -325,7 +328,7 @@ export default function OrgDashboard() {
               ? organizations.some(
                   (org) => org.toLowerCase() === organization.toLowerCase()
                 )
-              : false; // 組織名が設定されていない場合はカウントしない
+              : true; // 組織名が設定されていない場合は全てカウント
 
           // 発行者アドレスと組織名の両方が一致する場合のみカウント
           if (isIssuerMatch && isOrgMatch) {
@@ -399,9 +402,11 @@ export default function OrgDashboard() {
     if (isConnected && account && isReady) {
       // accountが変更されたときは、organizationをnullにリセットしてから再取得
       setOrganization(null);
+      setOrganizationLoaded(false);
       loadOrganization();
     } else if (!isConnected || !account) {
       setOrganization(null);
+      setOrganizationLoaded(false);
     }
   }, [isConnected, account, isReady, loadOrganization]);
 
@@ -414,7 +419,7 @@ export default function OrgDashboard() {
    * アカウントが変更された場合も、データを再読み込みします。
    */
   useEffect(() => {
-    if (isConnected && isReady && account && organization !== null) {
+    if (isConnected && isReady && account && organizationLoaded) {
       // ブロックチェーンから読み込む
       loadData();
     } else if (!isConnected) {
@@ -425,7 +430,7 @@ export default function OrgDashboard() {
     isConnected,
     isReady,
     account,
-    organization,
+    organizationLoaded,
     loadData,
     loadDataFromStorage,
   ]);
