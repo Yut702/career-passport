@@ -1,14 +1,14 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useWalletConnect } from "../hooks/useWalletConnect";
-import { matchAPI, jobConditionAPI } from "../lib/api";
+import { jobConditionAPI } from "../lib/api";
 import { jobCategories, industries } from "../data/jobCategories";
 
 export default function StudentMatchedCompanies() {
   const [searchParams] = useSearchParams();
   const orgAddress = searchParams.get("orgAddress");
   const navigate = useNavigate();
-  const { account, isConnected } = useWalletConnect();
+  const { isConnected } = useWalletConnect();
   const [companyCondition, setCompanyCondition] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -44,37 +44,6 @@ export default function StudentMatchedCompanies() {
 
     loadCompanyCondition();
   }, [orgAddress]);
-
-  const handleContact = () => {
-    if (orgAddress) {
-      navigate(`/student/messages?companyId=${orgAddress}`);
-    }
-  };
-
-  const handleCreateMatch = async () => {
-    if (!isConnected || !account || !orgAddress) {
-      setError("ウォレットを接続してください");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      const response = await matchAPI.create(account, orgAddress);
-      if (response.ok) {
-        alert("マッチングを作成しました");
-        navigate("/student/job-search");
-      } else {
-        throw new Error(response.error || "マッチングの作成に失敗しました");
-      }
-    } catch (err) {
-      console.error("Error creating match:", err);
-      setError(err.message || "マッチングの作成に失敗しました");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -240,22 +209,6 @@ export default function StudentMatchedCompanies() {
                 </p>
               </div>
             )}
-          </div>
-
-          <div className="flex space-x-4 mt-6">
-            <button
-              onClick={handleCreateMatch}
-              disabled={loading}
-              className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-center py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 disabled:opacity-50"
-            >
-              {loading ? "処理中..." : "マッチングを作成"}
-            </button>
-            <button
-              onClick={handleContact}
-              className="flex-1 bg-gray-600 text-white text-center py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
-            >
-              メッセージを送る
-            </button>
           </div>
         </div>
       )}

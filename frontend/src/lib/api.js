@@ -215,10 +215,16 @@ export const messageAPI = {
    * 会話のメッセージ一覧を取得
    *
    * @param {string} conversationId - 会話ID
+   * @param {string} walletAddress - ログインしているウォレットアドレス（フィルタリング用）
    * @returns {Promise<Object>} メッセージ一覧
    */
-  getMessages: async (conversationId) => {
-    return request(`/messages/conversations/${conversationId}`);
+  getMessages: async (conversationId, walletAddress) => {
+    if (!walletAddress) {
+      throw new Error("walletAddress is required");
+    }
+    return request(
+      `/messages/conversations/${conversationId}?walletAddress=${walletAddress}`
+    );
   },
 
   /**

@@ -145,11 +145,20 @@ export default function OrgMatchedCandidates() {
             conditionResponse.condition.selectedZKPProofs.length > 0
           ) {
             const zkpConditionsData = [];
+            const seenProofIds = new Set(); // 重複チェック用
+
             for (const proofId of conditionResponse.condition
               .selectedZKPProofs) {
+              // 既に処理したproofIdはスキップ（重複除去）
+              if (seenProofIds.has(proofId)) {
+                console.log(`ZKP証明 ${proofId} は既に処理済みのためスキップ`);
+                continue;
+              }
+
               try {
                 const zkpResponse = await zkpProofAPI.getZKPProofById(proofId);
                 if (zkpResponse.ok && zkpResponse.proof) {
+                  seenProofIds.add(proofId);
                   zkpConditionsData.push(zkpResponse.proof);
                 } else {
                   // 証明が見つからない場合は警告のみ（エラーにはしない）
@@ -165,7 +174,18 @@ export default function OrgMatchedCandidates() {
                 );
               }
             }
-            setZkpConditions(zkpConditionsData);
+
+            // さらに、proofIdが同じで内容も同じ可能性があるため、proofIdでユニークにする
+            const uniqueZkpConditions = Array.from(
+              new Map(
+                zkpConditionsData.map((proof) => [
+                  proof.proofId || JSON.stringify(proof),
+                  proof,
+                ])
+              ).values()
+            );
+
+            setZkpConditions(uniqueZkpConditions);
           } else {
             setZkpConditions([]);
           }
@@ -401,7 +421,7 @@ export default function OrgMatchedCandidates() {
 
     if (
       !window.confirm(
-        "この候補者とマッチングを作成しますか？\nマッチング作成後、自動的にメッセージが送信されます。"
+        "この候補者とマッチングを作成しますか？\nマッチング作成後、「メッセージを送る」ボタンからメッセージを送信できます。"
       )
     ) {
       return;
@@ -414,9 +434,11 @@ export default function OrgMatchedCandidates() {
       const response = await matchAPI.create(studentAddress, account);
       if (response.ok && response.match) {
         setMatch(response.match);
-        alert("マッチングを作成しました！");
-        // ページをリロードして最新の情報を取得
-        window.location.reload();
+        alert(
+          "マッチングを作成しました！\n「メッセージを送る」ボタンからメッセージを送信できます。"
+        );
+        // ページをリロードせず、マッチング状態を更新するだけ
+        // window.location.reload();
       } else {
         throw new Error(response.error || "マッチングの作成に失敗しました");
       }

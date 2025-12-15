@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useWalletConnect } from "../hooks/useWalletConnect";
-import { messageAPI } from "../lib/api";
+import { messageAPI, matchAPI } from "../lib/api";
 import { storage } from "../lib/storage";
 import { formatAddress } from "../lib/utils";
 
@@ -13,16 +13,83 @@ export default function OrgMessages() {
   const [conversations, setConversations] = useState([]);
   const [selectedCandidate, setSelectedCandidate] = useState(null);
   const [newMessage, setNewMessage] = useState("");
+  const [showNewConversation, setShowNewConversation] = useState(false);
+  const [newConversationAddress, setNewConversationAddress] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState(null);
-  const [applicants, setApplicants] = useState([]); // 応募者リスト
+  const [applicants, setApplicants] = useState([]); // 応募者リスト（マッチング済みのみ）
 
-  // 応募者リストを読み込む
+  // マッチングしている応募者リストを読み込む
   useEffect(() => {
-    const applicantList = storage.getApplicants();
-    setApplicants(applicantList);
-  }, []);
+    const loadMatchedApplicants = async () => {
+      if (!isConnected || !account) {
+        setApplicants([]);
+        return;
+      }
+
+      try {
+        // マッチング情報を取得
+        const matchesResponse = await matchAPI.getOrgMatches(account);
+        console.log("📊 マッチング情報取得結果:", {
+          ok: matchesResponse.ok,
+          matchesCount: matchesResponse.matches?.length || 0,
+          matches: matchesResponse.matches,
+        });
+
+        if (matchesResponse.ok && matchesResponse.matches) {
+          // アクティブなマッチングの学生アドレスを抽出
+          const matchedStudentAddresses = new Set(
+            matchesResponse.matches
+              .filter((m) => m.status === "active")
+              .map((m) => m.studentAddress.toLowerCase())
+          );
+
+          console.log(
+            "✅ マッチングしている学生アドレス:",
+            Array.from(matchedStudentAddresses)
+          );
+
+          // 応募者リストから、マッチングしている学生だけをフィルタリング
+          const allApplicants = storage.getApplicants();
+          console.log("📋 応募者リスト:", allApplicants.length, "件");
+
+          const matchedApplicants = allApplicants.filter((applicant) =>
+            matchedStudentAddresses.has(applicant.walletAddress.toLowerCase())
+          );
+
+          console.log(
+            "🎯 フィルタリング後の応募者数:",
+            matchedApplicants.length,
+            "件"
+          );
+
+          // 重複を除去: walletAddressとeventIdの組み合わせでユニークにする
+          const uniqueApplicants = Array.from(
+            new Map(
+              matchedApplicants.map((applicant) => [
+                `${applicant.walletAddress}-${applicant.eventId}`,
+                applicant,
+              ])
+            ).values()
+          );
+
+          setApplicants(uniqueApplicants);
+        } else {
+          console.warn(
+            "⚠️ マッチング情報が取得できませんでした:",
+            matchesResponse
+          );
+          setApplicants([]);
+        }
+      } catch (err) {
+        console.error("❌ マッチング情報の取得エラー:", err);
+        setApplicants([]);
+      }
+    };
+
+    loadMatchedApplicants();
+  }, [isConnected, account]);
 
   // 会話一覧を取得
   useEffect(() => {
@@ -103,9 +170,11 @@ export default function OrgMessages() {
     }
 
     const loadMessages = async () => {
+      if (!account) return;
       try {
         const response = await messageAPI.getMessages(
-          selectedCandidate.conversationId
+          selectedCandidate.conversationId,
+          account
         );
         if (response.ok && response.messages) {
           // メッセージをフォーマット（Fromアドレス情報を含む）
@@ -142,6 +211,32 @@ export default function OrgMessages() {
     const interval = setInterval(loadMessages, 3000);
     return () => clearInterval(interval);
   }, [selectedCandidate?.conversationId, account]);
+
+  const handleStartNewConversation = () => {
+    if (!newConversationAddress.trim()) {
+      setError("応募者のウォレットアドレスを入力してください");
+      return;
+    }
+
+    // アドレスの形式チェック（簡易版）
+    if (
+      !newConversationAddress.startsWith("0x") ||
+      newConversationAddress.length !== 42
+    ) {
+      setError(
+        "有効なウォレットアドレスを入力してください（0xで始まる42文字）"
+      );
+      return;
+    }
+
+    setSelectedCandidate({
+      walletAddress: newConversationAddress,
+      conversationId: null, // 最初のメッセージ送信時に生成される
+      otherInfo: { walletAddress: newConversationAddress },
+    });
+    setShowNewConversation(false);
+    setNewConversationAddress("");
+  };
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !account || !isConnected) return;
@@ -186,12 +281,13 @@ export default function OrgMessages() {
       setNewMessage("");
 
       // メッセージ一覧を再取得（会話IDがある場合のみ）
-      if (finalConversationId) {
+      if (finalConversationId && account) {
         // データベースへの反映を待ってから再取得
         setTimeout(async () => {
           try {
             const messagesResponse = await messageAPI.getMessages(
-              finalConversationId
+              finalConversationId,
+              account
             );
             if (messagesResponse.ok && messagesResponse.messages) {
               const formattedMessages = messagesResponse.messages.map(
@@ -238,38 +334,81 @@ export default function OrgMessages() {
                 Web3設計：個人情報は表示されません
               </p>
             </div>
-            {isConnected && applicants.length > 0 && (
-              <div className="p-2 border-b border-gray-200">
-                <p className="text-xs text-gray-600 mb-2 font-medium">
-                  📋 応募者から選択
-                </p>
-                <select
-                  onChange={(e) => {
-                    const selected = applicants.find(
-                      (a) => a.walletAddress === e.target.value
-                    );
-                    if (selected) {
-                      setSelectedCandidate({
-                        walletAddress: selected.walletAddress,
-                        conversationId: null,
-                        otherInfo: { walletAddress: selected.walletAddress },
-                      });
-                    }
-                  }}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none bg-white"
-                  defaultValue=""
+            {isConnected && (
+              <div className="p-2 border-b border-gray-200 space-y-2">
+                {/* 新しい会話を開始 */}
+                <button
+                  onClick={() => setShowNewConversation(!showNewConversation)}
+                  className="w-full px-3 py-2 text-sm bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors font-medium"
                 >
-                  <option value="">応募者を選択...</option>
-                  {applicants.map((applicant) => (
-                    <option
-                      key={`${applicant.walletAddress}-${applicant.eventId}`}
-                      value={applicant.walletAddress}
+                  {showNewConversation ? "キャンセル" : "+ 新しい会話を開始"}
+                </button>
+                {showNewConversation && (
+                  <div className="mt-2 p-3 bg-white rounded-lg border border-gray-200 space-y-2">
+                    {/* 応募者から選択（補助的） */}
+                    {applicants.length > 0 && (
+                      <div>
+                        <p className="text-xs text-gray-600 mb-1 font-medium">
+                          📋 応募者から選択（任意）
+                        </p>
+                        <select
+                          onChange={(e) => {
+                            const selected = applicants.find(
+                              (a) => a.walletAddress === e.target.value
+                            );
+                            if (selected) {
+                              setNewConversationAddress(selected.walletAddress);
+                            }
+                          }}
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none bg-white"
+                          defaultValue=""
+                        >
+                          <option value="">応募者を選択...</option>
+                          {applicants
+                            .filter(
+                              (applicant, index, self) =>
+                                index ===
+                                self.findIndex(
+                                  (a) =>
+                                    a.walletAddress.toLowerCase() ===
+                                      applicant.walletAddress.toLowerCase() &&
+                                    a.eventId === applicant.eventId
+                                )
+                            )
+                            .map((applicant) => (
+                              <option
+                                key={`${applicant.walletAddress}-${applicant.eventId}`}
+                                value={applicant.walletAddress}
+                              >
+                                {applicant.eventTitle} -{" "}
+                                {formatAddress(applicant.walletAddress)}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-xs text-gray-600 mb-1 font-medium">
+                        応募者のウォレットアドレス
+                      </p>
+                      <input
+                        type="text"
+                        value={newConversationAddress}
+                        onChange={(e) =>
+                          setNewConversationAddress(e.target.value)
+                        }
+                        placeholder="0x..."
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                      />
+                    </div>
+                    <button
+                      onClick={handleStartNewConversation}
+                      className="w-full px-3 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
                     >
-                      {applicant.eventTitle} -{" "}
-                      {formatAddress(applicant.walletAddress)}
-                    </option>
-                  ))}
-                </select>
+                      会話を開始
+                    </button>
+                  </div>
+                )}
               </div>
             )}
             {!isConnected && (
@@ -279,75 +418,83 @@ export default function OrgMessages() {
             )}
             {loading ? (
               <div className="p-4 text-center text-gray-500">読み込み中...</div>
-            ) : conversations.length === 0 ? (
-              <div className="p-4 text-center text-gray-500">
-                会話がありません
-              </div>
             ) : (
-              <div className="divide-y divide-gray-200">
-                {conversations.map((conv) => (
-                  <button
-                    key={conv.conversationId}
-                    onClick={() =>
-                      setSelectedCandidate({
-                        walletAddress: conv.otherAddress,
-                        conversationId: conv.conversationId,
-                        otherInfo: conv.otherInfo,
-                      })
-                    }
-                    className={`w-full p-4 text-left hover:bg-white transition-colors ${
-                      selectedCandidate?.conversationId === conv.conversationId
-                        ? "bg-white border-r-4 border-purple-600"
-                        : ""
-                    }`}
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex-1">
-                        <div className="font-medium text-gray-900 mb-1">
-                          {(() => {
-                            const applicant = applicants.find(
-                              (a) =>
-                                a.walletAddress.toLowerCase() ===
-                                conv.otherAddress.toLowerCase()
-                            );
-                            return applicant
-                              ? `${applicant.eventTitle} - ${formatAddress(
-                                  conv.otherAddress
-                                )}`
-                              : formatAddress(conv.otherAddress);
-                          })()}
+              <>
+                {/* 会話一覧（優先表示） */}
+                {conversations.length > 0 && (
+                  <div className="divide-y divide-gray-200">
+                    {conversations.map((conv) => (
+                      <button
+                        key={conv.conversationId}
+                        onClick={() =>
+                          setSelectedCandidate({
+                            walletAddress: conv.otherAddress,
+                            conversationId: conv.conversationId,
+                            otherInfo: conv.otherInfo,
+                          })
+                        }
+                        className={`w-full p-4 text-left hover:bg-white transition-colors ${
+                          selectedCandidate?.conversationId ===
+                          conv.conversationId
+                            ? "bg-white border-r-4 border-purple-600"
+                            : ""
+                        }`}
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900 mb-1">
+                              {(() => {
+                                const applicant = applicants.find(
+                                  (a) =>
+                                    a.walletAddress.toLowerCase() ===
+                                    conv.otherAddress.toLowerCase()
+                                );
+                                return applicant
+                                  ? `${applicant.eventTitle} - ${formatAddress(
+                                      conv.otherAddress
+                                    )}`
+                                  : formatAddress(conv.otherAddress);
+                              })()}
+                            </div>
+                            <div className="flex items-center space-x-2 text-xs text-gray-500">
+                              <span className="font-mono">
+                                {formatAddress(conv.otherAddress)}
+                              </span>
+                              <span className="w-1 h-1 bg-green-500 rounded-full"></span>
+                            </div>
+                          </div>
+                          {conv.unreadCount > 0 && (
+                            <span className="bg-purple-600 text-white text-xs rounded-full px-2 py-1">
+                              {conv.unreadCount}
+                            </span>
+                          )}
                         </div>
-                        <div className="flex items-center space-x-2 text-xs text-gray-500">
-                          <span className="font-mono">
-                            {formatAddress(conv.otherAddress)}
-                          </span>
-                          <span className="w-1 h-1 bg-green-500 rounded-full"></span>
+                        <div className="flex items-center justify-between mt-2">
+                          <div className="text-xs text-gray-500 truncate flex-1 mr-2">
+                            {conv.latestMessage?.content || ""}
+                          </div>
+                          <div className="text-xs text-gray-400">
+                            {conv.latestMessage?.sentAt
+                              ? new Date(
+                                  conv.latestMessage.sentAt
+                                ).toLocaleTimeString("ja-JP", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })
+                              : ""}
+                          </div>
                         </div>
-                      </div>
-                      {conv.unreadCount > 0 && (
-                        <span className="bg-purple-600 text-white text-xs rounded-full px-2 py-1">
-                          {conv.unreadCount}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center justify-between mt-2">
-                      <div className="text-xs text-gray-500 truncate flex-1 mr-2">
-                        {conv.latestMessage?.content || ""}
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        {conv.latestMessage?.sentAt
-                          ? new Date(
-                              conv.latestMessage.sentAt
-                            ).toLocaleTimeString("ja-JP", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
-                          : ""}
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {/* 会話がない場合のメッセージ */}
+                {conversations.length === 0 && (
+                  <div className="p-4 text-center text-gray-500">
+                    会話がありません。上記の「新しい会話を開始」から始められます。
+                  </div>
+                )}
+              </>
             )}
           </div>
 
