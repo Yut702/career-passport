@@ -27,12 +27,28 @@ export default function StudentJobSearch() {
         const conditionResponse = await jobConditionAPI.getJobCondition(
           account
         );
+
         if (conditionResponse.ok && conditionResponse.condition) {
+          // 求人条件がログインユーザーのものか確認
+          const conditionWalletAddress =
+            conditionResponse.condition.walletAddress?.toLowerCase();
+          const currentAccount = account?.toLowerCase();
+          if (
+            conditionWalletAddress &&
+            conditionWalletAddress !== currentAccount
+          ) {
+            setError(
+              "求人条件の取得に失敗しました。ログインし直してください。"
+            );
+            setLoading(false);
+            return;
+          }
           setMyCondition(conditionResponse.condition);
         }
 
         // マッチング候補を取得
         const matchResponse = await matchAPI.searchStudentMatches(account);
+
         if (matchResponse.ok && matchResponse.candidates) {
           // マッチング候補を求人情報に変換
           const formattedJobs = matchResponse.candidates.map((candidate) => {
@@ -57,7 +73,7 @@ export default function StudentJobSearch() {
           setJobs([]);
         }
       } catch (err) {
-        console.error("Error loading data:", err);
+        console.error("Error loading job search data:", err);
         setError("データの取得に失敗しました");
         setJobs([]);
       } finally {

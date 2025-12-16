@@ -6,7 +6,6 @@ import NFTGoalCard from "../components/NFTGoalCard";
 import StampNotification from "../components/StampNotification";
 import { useContracts } from "../hooks/useContracts";
 import { useWalletConnect } from "../hooks/useWalletConnect";
-import { storage } from "../lib/storage";
 
 function getRpcErrorMessage(err) {
   return err?.data?.message || err?.error?.data?.message || err?.message || "";
@@ -76,59 +75,6 @@ export default function Home() {
    * @async
    * @returns {Promise<void>}
    */
-  const loadDataFromStorage = useCallback(() => {
-    try {
-      /**
-       * ローカルストレージからデータを取得
-       *
-       * 以下のデータをローカルストレージから取得します：
-       * - ユーザー情報
-       * - スタンプデータ
-       * - NFT データ
-       */
-      const stampsData = storage.getStamps();
-      const nftsData = storage.getNFTs();
-
-      setStamps(stampsData || []);
-      setNfts(nftsData || []);
-
-      /**
-       * 企業別のスタンプ数を集計
-       *
-       * ダッシュボードに表示する統計情報を計算します。
-       * ブロックチェーンから読み込む場合と同じロジックを使用します。
-       */
-      // organizationStatsは現在使用していないため、コメントアウト
-      // const stats = {};
-      // if (stampsData && stampsData.length > 0) {
-      //   stampsData.forEach((stamp) => {
-      //     if (!stats[stamp.organization]) {
-      //       stats[stamp.organization] = 0;
-      //     }
-      //     stats[stamp.organization]++;
-      //   });
-      // }
-      // setOrganizationStats(stats);
-    } catch (err) {
-      /**
-       * エラーハンドリング: ローカルストレージからの読み込みに失敗した場合
-       *
-       * ローカルストレージが無効な場合や、データが破損している場合にエラーが発生します。
-       * ただし、データが存在しない場合は正常な状態として扱います。
-       */
-      console.warn("Warning: Could not load data from storage:", err);
-      // データが存在しない場合はエラーとしない（新規ユーザーの可能性）
-      setStamps([]);
-      setNfts([]);
-      // エラーを設定しない（空のデータで表示を続ける）
-    } finally {
-      /**
-       * ローディング状態を解除
-       */
-      setLoading(false);
-    }
-  }, []);
-
   /**
    * ブロックチェーンからデータを読み込む関数
    *
@@ -150,7 +96,7 @@ export default function Home() {
    */
   const loadData = useCallback(async () => {
     // コントラクトとアカウントが存在しない場合は処理を中断
-    if (!stampManagerContract || !nftContract || !account) return;
+    if (!stampManagerContract || !nftContract || !account || !isReady) return;
 
     setLoading(true);
 
@@ -256,12 +202,14 @@ export default function Home() {
               }
             }
           } catch (retryError) {
-            // リトライでもエラーが発生した場合は、ローカルストレージから読み込む
-            console.warn(
-              "[Home] リトライに失敗しました。ローカルストレージから読み込みます。",
+            // リトライでもエラーが発生した場合は、空のデータを設定
+            console.error(
+              "[Home] リトライに失敗しました:",
               getRpcErrorMessage(retryError)
             );
-            loadDataFromStorage();
+            setStamps([]);
+            setNfts([]);
+            setNftGoals([]);
             return;
           }
         } else if (isCallException) {
@@ -269,8 +217,10 @@ export default function Home() {
           console.warn(
             "[Home] StampManagerコントラクトのgetUserStamps呼び出しに失敗しました。コントラクトが正しくデプロイされているか確認してください。"
           );
-          // エラー時はローカルストレージから読み込む（フォールバック）
-          loadDataFromStorage();
+          // エラー時は空のデータを設定
+          setStamps([]);
+          setNfts([]);
+          setNftGoals([]);
           return;
         } else {
           throw stampsError; // 他のエラーは再スロー
@@ -394,17 +344,6 @@ export default function Home() {
       setStamps(formattedStamps);
 
       /**
-       * ステップ2-2: ローカルストレージに保存（キャッシュ）
-       *
-       * ブロックチェーンから取得したスタンプデータをローカルストレージに保存します。
-       * これにより、次回アクセス時にブロックチェーンへのリクエストを減らし、
-       * パフォーマンスを向上させることができます。
-       */
-      if (formattedStamps.length > 0) {
-        storage.saveStamps(formattedStamps);
-      }
-
-      /**
        * ステップ3: ブロックチェーンから NFT を読み込む
        *
        * NonFungibleCareerNFT コントラクトから以下の情報を取得します：
@@ -505,17 +444,7 @@ export default function Home() {
       }
 
       setNfts(userNFTs);
-
-      /**
-       * ステップ3-2: ローカルストレージに保存（キャッシュ）
-       *
-       * ブロックチェーンから取得した NFT データをローカルストレージに保存します。
-       * これにより、次回アクセス時にブロックチェーンへのリクエストを減らし、
-       * パフォーマンスを向上させることができます。
-       */
-      if (userNFTs.length > 0) {
-        storage.saveNFTs(userNFTs);
-      }
+      console.log(`[Home] ✅ NFTデータを設定: ${userNFTs.length}件`);
 
       /**
        * ステップ4: 企業別のスタンプ数を集計（NFT目標計算用）
@@ -585,13 +514,11 @@ export default function Home() {
        * ローカルストレージから読み込みを試みます。
        * エラーは警告として記録しますが、ユーザーには表示しません（フォールバックで対応）。
        */
-      console.warn(
-        "Warning: Could not load data from blockchain, falling back to storage:",
-        err
-      );
-      // エラー時はローカルストレージから読み込む（フォールバック）
-      // エラーメッセージは設定しない（フォールバックで対応するため）
-      loadDataFromStorage();
+      console.error("Error: Could not load data from blockchain:", err);
+      // エラー時は空のデータを設定
+      setStamps([]);
+      setNfts([]);
+      setNftGoals([]);
     } finally {
       /**
        * ローディング状態を解除
@@ -601,30 +528,54 @@ export default function Home() {
        */
       setLoading(false);
     }
-  }, [stampManagerContract, nftContract, account, loadDataFromStorage]);
+  }, [stampManagerContract, nftContract, account, isReady]);
+
+  /**
+   * アカウント変更時またはウォレット切断時にデータをリセット
+   *
+   * アカウントが変更されたとき、またはウォレットが切断されたときに、
+   * 既存のデータをクリアして新しいアカウントのデータを読み込む準備をします。
+   */
+  useEffect(() => {
+    if (isConnected && account) {
+      // アカウントが変更されたときは、データをリセット
+      setStamps([]);
+      setNfts([]);
+      setNftGoals([]);
+      prevStampsRef.current = [];
+      setLoading(true);
+    } else if (!isConnected || !account) {
+      // ウォレット切断時は、データをリセットしてローディング状態を解除
+      setStamps([]);
+      setNfts([]);
+      setNftGoals([]);
+      prevStampsRef.current = [];
+      setLoading(false); // ウォレット切断時はローディングを解除
+    }
+  }, [isConnected, account]);
 
   /**
    * ウォレット接続状態とコントラクト準備状態が変更されたときにデータを読み込む
    *
    * ウォレットが接続されていて、コントラクトが準備完了している場合、
    * ブロックチェーンからデータを読み込みます。
-   * ウォレットが接続されていない場合は、ローカルストレージから読み込みます。
+   * ウォレットが切断された場合は、データをリセットしたままにします。
    */
   useEffect(() => {
+    // ウォレットが切断されている場合は何もしない（データは既にリセット済み）
+    if (!isConnected || !account) {
+      return;
+    }
+
     // コントラクトが準備できていない場合は待機（エラーを表示しない）
     if (!isReady) {
       setLoading(true);
       return;
     }
 
-    if (isConnected && account) {
-      // ブロックチェーンから読み込む
-      loadData();
-    } else {
-      // ウォレット未接続時はローカルストレージから読み込む（フォールバック）
-      loadDataFromStorage();
-    }
-  }, [isConnected, isReady, account, loadData, loadDataFromStorage]);
+    // ブロックチェーンから読み込む
+    loadData();
+  }, [isConnected, isReady, account, loadData]);
 
   /**
    * 最近のスタンプを取得

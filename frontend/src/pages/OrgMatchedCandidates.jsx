@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { useWalletConnect } from "../hooks/useWalletConnect";
 import { useContracts } from "../hooks/useContracts";
 import { matchAPI, jobConditionAPI, zkpProofAPI } from "../lib/api";
-import { formatAddress } from "../lib/utils";
+import { formatAddress, removeDuplicateZKPProofs } from "../lib/utils";
 import { verifyProofs } from "../lib/zkp/verifier";
 import { jobCategories, industries } from "../data/jobCategories";
 
@@ -31,24 +31,8 @@ export default function OrgMatchedCandidates() {
 
   // マッチング情報を取得
   useEffect(() => {
-    console.log("[OrgMatchedCandidates] useEffect実行:", {
-      matchId,
-      studentAddress,
-      account,
-      isConnected,
-    });
-
     const loadMatch = async () => {
-      console.log("[OrgMatchedCandidates] loadMatch開始:", {
-        matchId,
-        studentAddress,
-        account,
-      });
-
       if (!matchId && !studentAddress) {
-        console.warn(
-          "[OrgMatchedCandidates] matchIdとstudentAddressの両方がありません"
-        );
         setError("マッチングIDまたは学生アドレスが必要です");
         setLoading(false);
         return;
@@ -66,26 +50,11 @@ export default function OrgMatchedCandidates() {
           }
         } else if (studentAddress) {
           // studentAddressからマッチングを検索（簡易実装）
-          console.log("[OrgMatchedCandidates] マッチング検索開始:", {
-            studentAddress,
-            account,
-          });
           const response = await matchAPI.getOrgMatches(account);
-          console.log("[OrgMatchedCandidates] マッチング検索結果:", {
-            ok: response.ok,
-            matchesCount: response.matches?.length || 0,
-            matches: response.matches,
-          });
           if (response.ok && response.matches) {
             matchData = response.matches.find(
               (m) =>
                 m.studentAddress.toLowerCase() === studentAddress.toLowerCase()
-            );
-            console.log("[OrgMatchedCandidates] 該当マッチング:", matchData);
-          } else {
-            console.warn(
-              "[OrgMatchedCandidates] マッチング検索失敗またはマッチングなし:",
-              response
             );
           }
         }
@@ -99,9 +68,6 @@ export default function OrgMatchedCandidates() {
         } else {
           // マッチングが存在しない場合でも、エラーではなく情報として扱う
           // 学生の情報は引き続き表示できるようにする
-          console.log(
-            "[OrgMatchedCandidates] マッチングが見つかりませんでしたが、学生情報は表示します"
-          );
           setError(null); // エラーをクリア（学生情報は表示可能）
         }
       } catch (err) {
@@ -113,15 +79,8 @@ export default function OrgMatchedCandidates() {
     };
 
     if (isConnected && account) {
-      console.log(
-        "[OrgMatchedCandidates] 条件満たしたためloadMatchを実行します"
-      );
       loadMatch();
     } else {
-      console.warn("[OrgMatchedCandidates] 条件未満足:", {
-        isConnected,
-        account,
-      });
       setLoading(false);
     }
   }, [matchId, studentAddress, account, isConnected]);
@@ -145,21 +104,31 @@ export default function OrgMatchedCandidates() {
             conditionResponse.condition.selectedZKPProofs.length > 0
           ) {
             const zkpConditionsData = [];
-            const seenProofIds = new Set(); // 重複チェック用
+            const seenProofIds = new Set(); // 重複チェック用（proofId）
+            const seenProofHashes = new Set(); // 重複チェック用（proofHash）
 
             for (const proofId of conditionResponse.condition
               .selectedZKPProofs) {
               // 既に処理したproofIdはスキップ（重複除去）
               if (seenProofIds.has(proofId)) {
-                console.log(`ZKP証明 ${proofId} は既に処理済みのためスキップ`);
                 continue;
               }
 
               try {
                 const zkpResponse = await zkpProofAPI.getZKPProofById(proofId);
                 if (zkpResponse.ok && zkpResponse.proof) {
+                  const proof = zkpResponse.proof;
+
+                  // proofHashで重複チェック（proofHashが優先）
+                  if (proof.proofHash) {
+                    if (seenProofHashes.has(proof.proofHash)) {
+                      continue;
+                    }
+                    seenProofHashes.add(proof.proofHash);
+                  }
+
                   seenProofIds.add(proofId);
-                  zkpConditionsData.push(zkpResponse.proof);
+                  zkpConditionsData.push(proof);
                 } else {
                   // 証明が見つからない場合は警告のみ（エラーにはしない）
                   console.warn(
@@ -175,16 +144,9 @@ export default function OrgMatchedCandidates() {
               }
             }
 
-            // さらに、proofIdが同じで内容も同じ可能性があるため、proofIdでユニークにする
-            const uniqueZkpConditions = Array.from(
-              new Map(
-                zkpConditionsData.map((proof) => [
-                  proof.proofId || JSON.stringify(proof),
-                  proof,
-                ])
-              ).values()
-            );
-
+            // 重複を除去（共通関数を使用）
+            const uniqueZkpConditions =
+              removeDuplicateZKPProofs(zkpConditionsData);
             setZkpConditions(uniqueZkpConditions);
           } else {
             setZkpConditions([]);
@@ -403,19 +365,38 @@ export default function OrgMatchedCandidates() {
     }
   };
 
+  /**
+   * メッセージ送信
+   * マッチングに紐づくウォレットアドレスを宛先として使用
+   */
   const handleContact = () => {
+    // マッチングが作成されている場合は、マッチングのstudentAddressを優先
+    // マッチングがまだ作成されていない場合は、URLパラメータのstudentAddressを使用
     const targetAddress = match?.studentAddress || studentAddress;
-    if (targetAddress) {
-      navigate(`/org/messages?candidateId=${targetAddress}`);
+
+    if (!targetAddress) {
+      setError(
+        "送信先アドレスが設定されていません。マッチングを作成してください。"
+      );
+      return;
     }
+
+    // マッチングに紐づくウォレットアドレスを宛先として使用
+    navigate(`/org/messages?candidateId=${targetAddress}`);
   };
 
   /**
    * マッチングを作成
+   * ウォレットアドレスを送信してマッチングを紐づける
    */
   const handleCreateMatch = async () => {
-    if (!studentAddress || !account) {
-      setError("学生アドレスまたは企業アドレスが設定されていません");
+    // studentAddressとaccountの両方が必要
+    if (!studentAddress) {
+      setError("学生のウォレットアドレスが設定されていません");
+      return;
+    }
+    if (!account) {
+      setError("企業のウォレットアドレスが設定されていません");
       return;
     }
 
@@ -431,9 +412,14 @@ export default function OrgMatchedCandidates() {
     setError(null);
 
     try {
+      // ウォレットアドレスを送信してマッチングを作成
       const response = await matchAPI.create(studentAddress, account);
+
       if (response.ok && response.match) {
-        setMatch(response.match);
+        const createdMatch = response.match;
+        // マッチング情報を設定（studentAddressとorgAddressが含まれる）
+        setMatch(createdMatch);
+
         alert(
           "マッチングを作成しました！\n「メッセージを送る」ボタンからメッセージを送信できます。"
         );
@@ -443,7 +429,7 @@ export default function OrgMatchedCandidates() {
         throw new Error(response.error || "マッチングの作成に失敗しました");
       }
     } catch (err) {
-      console.error("Error creating match:", err);
+      console.error("[OrgMatchedCandidates] マッチング作成エラー:", err);
       if (
         err.message?.includes("already exists") ||
         err.message?.includes("409")

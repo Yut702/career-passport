@@ -2,7 +2,6 @@ import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useContracts } from "../hooks/useContracts";
 import { useWalletConnect } from "../hooks/useWalletConnect";
-import { storage } from "../lib/storage";
 import { getStampEmoji, getStampGradient } from "../lib/imageTypes";
 
 /**
@@ -40,73 +39,10 @@ export default function OrgDashboard() {
    * ローカルストレージに保存されたデータを読み込み、統計情報を計算します。
    *
    * useCallback でメモ化することで、関数の再作成を防ぎます。
-   * この関数は依存関係がないため、常に同じ関数インスタンスを返します。
    *
    * @async
    * @returns {Promise<void>}
    */
-  const loadDataFromStorage = useCallback(() => {
-    try {
-      /**
-       * モックデータの初期化
-       *
-       * ローカルストレージからデータを取得
-       *
-       * 以下のデータをローカルストレージから取得します：
-       * - スタンプデータ
-       * - NFT データ
-       */
-      const stamps = storage.getStamps();
-      const nfts = storage.getNFTs();
-
-      /**
-       * 統計情報を計算
-       *
-       * ローカルストレージのデータから統計情報を計算します：
-       * - totalStamps: スタンプの総数
-       * - totalUsers: ユニークなユーザー数（スタンプの id から計算）
-       * - totalNFTs: NFT の総数
-       *
-       * 注意: ユニークなユーザー数は、スタンプデータに含まれるユーザーアドレス（userAddress）
-       * を使用して計算します。同じユーザーアドレスに複数のスタンプを発行した場合でも、
-       * 1人としてカウントされます。
-       */
-      const uniqueUsers = new Set(
-        stamps
-          .filter((s) => s.userAddress) // ユーザーアドレスが存在するスタンプのみをフィルタリング
-          .map((s) => s.userAddress.toLowerCase()) // 大文字・小文字を区別しないように小文字に変換
-      );
-      setStats({
-        totalStamps: stamps.length || 0, // スタンプの総数
-        totalUsers: uniqueUsers.size || 0, // ユニークなユーザー数
-        totalNFTs: nfts.length || 0, // NFT の総数
-      });
-
-      /**
-       * 最近発行したスタンプを取得
-       *
-       * スタンプ配列の最後の5件を取得し、新しい順（逆順）に並べ替えます。
-       * これにより、ダッシュボードに「最近の発行」セクションを表示できます。
-       */
-      setRecentStamps(
-        stamps && stamps.length > 0 ? stamps.slice(-5).reverse() : []
-      );
-    } catch (err) {
-      /**
-       * エラーハンドリング: ローカルストレージからの読み込みに失敗した場合
-       *
-       * ローカルストレージが無効な場合や、データが破損している場合にエラーが発生します。
-       */
-      console.error("Error loading dashboard from storage:", err);
-      setError("データの読み込みに失敗しました");
-    } finally {
-      /**
-       * ローディング状態を解除
-       */
-      setLoading(false);
-    }
-  }, []);
-
   /**
    * 企業の組織名を取得
    */
@@ -149,11 +85,12 @@ export default function OrgDashboard() {
       ) {
         // 初期状態として扱う（エラーを表示しない）
         setOrganization("");
+        setOrganizationLoaded(true); // エラー時も読み込み完了として扱う
         return;
       }
       console.error("loadOrganization: エラー", err);
       setOrganization("");
-      setOrganizationLoaded(true);
+      setOrganizationLoaded(true); // エラー時も読み込み完了として扱う
     }
   }, [stampManagerContract, account, isReady]);
 
@@ -345,7 +282,7 @@ export default function OrgDashboard() {
        */
       const newStats = {
         totalStamps: issuedStamps.length,
-        totalUsers: uniqueUsers.size,
+        totalUsers: uniqueUsers.size, // スタンプを受け取ったユーザー数
         totalNFTs: totalNFTs,
       };
       console.log("loadData: 統計情報を設定", newStats, {
@@ -379,34 +316,46 @@ export default function OrgDashboard() {
       } else {
         console.error("Error loading dashboard:", err);
         setError("データの読み込みに失敗しました");
-        // エラー時はローカルストレージから読み込む（フォールバック）
-        loadDataFromStorage();
+        // エラー時は空のデータを設定
+        setStats({
+          totalStamps: 0,
+          totalUsers: 0,
+          totalNFTs: 0,
+        });
+        setRecentStamps([]);
       }
     } finally {
       setLoading(false);
     }
-  }, [
-    stampManagerContract,
-    nftContract,
-    account,
-    isReady,
-    organization,
-    loadDataFromStorage,
-  ]);
+  }, [stampManagerContract, nftContract, account, isReady, organization]);
 
   /**
    * 組織名を読み込む
-   * accountが変更されたときに、organizationをリセットしてから再取得
+   * accountが変更されたとき、またはウォレット切断時に、organizationをリセット
    */
   useEffect(() => {
     if (isConnected && account && isReady) {
-      // accountが変更されたときは、organizationをnullにリセットしてから再取得
+      // accountが変更されたときは、統計情報とorganizationをリセットしてから再取得
+      setStats({
+        totalStamps: 0,
+        totalUsers: 0,
+        totalNFTs: 0,
+      });
+      setRecentStamps([]);
       setOrganization(null);
       setOrganizationLoaded(false);
       loadOrganization();
     } else if (!isConnected || !account) {
+      // ウォレット切断時は、統計情報とorganizationをリセット
+      setStats({
+        totalStamps: 0,
+        totalUsers: 0,
+        totalNFTs: 0,
+      });
+      setRecentStamps([]);
       setOrganization(null);
       setOrganizationLoaded(false);
+      setLoading(false); // ウォレット切断時はローディングを解除
     }
   }, [isConnected, account, isReady, loadOrganization]);
 
@@ -415,25 +364,29 @@ export default function OrgDashboard() {
    *
    * ウォレットが接続されていて、コントラクトが準備完了している場合、
    * ブロックチェーンからデータを読み込みます。
-   * ウォレットが接続されていない場合は、ローカルストレージから読み込みます。
+   * ウォレットが切断された場合は、データをリセットしたままにします。
    * アカウントが変更された場合も、データを再読み込みします。
    */
   useEffect(() => {
-    if (isConnected && isReady && account && organizationLoaded) {
-      // ブロックチェーンから読み込む
-      loadData();
-    } else if (!isConnected) {
-      // ウォレット未接続時はローカルストレージから読み込む（フォールバック）
-      loadDataFromStorage();
+    // ウォレットが切断されている場合は何もしない（データは既にリセット済み）
+    if (!isConnected || !account) {
+      return;
     }
-  }, [
-    isConnected,
-    isReady,
-    account,
-    organizationLoaded,
-    loadData,
-    loadDataFromStorage,
-  ]);
+
+    // 組織名の読み込みが完了していない場合は待機
+    if (!organizationLoaded) {
+      return;
+    }
+
+    // コントラクトが準備できていない場合は待機
+    if (!isReady) {
+      setLoading(true);
+      return;
+    }
+
+    // ブロックチェーンから読み込む
+    loadData();
+  }, [isConnected, isReady, account, organizationLoaded, loadData]);
 
   /**
    * ローディング表示

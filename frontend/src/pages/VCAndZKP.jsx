@@ -11,6 +11,7 @@ import {
 import { storage } from "../lib/storage";
 import { useWalletConnect } from "../hooks/useWalletConnect.js";
 import { zkpProofAPI } from "../lib/api.js";
+import { removeDuplicateZKPProofs } from "../lib/utils.js";
 
 // 初期VCを読み込む関数
 const loadInitialVCs = () => {
@@ -65,7 +66,7 @@ export default function VCAndZKP() {
         const verifiedProofs = proofs.filter(
           (p) => p.verifyResult?.verified === true
         );
-        setVerifiedZKPProofs(verifiedProofs);
+        setVerifiedZKPProofs(removeDuplicateZKPProofs(verifiedProofs));
         return;
       }
 
@@ -77,14 +78,14 @@ export default function VCAndZKP() {
           const verified = response.proofs.filter(
             (p) => p.verified === true || p.verifiedAt
           );
-          setVerifiedZKPProofs(verified);
+          setVerifiedZKPProofs(removeDuplicateZKPProofs(verified));
         } else {
           // フォールバック: ローカルストレージから読み込む
           const proofs = storage.getZKPProofs();
           const verifiedProofs = proofs.filter(
             (p) => p.verifyResult?.verified === true
           );
-          setVerifiedZKPProofs(verifiedProofs);
+          setVerifiedZKPProofs(removeDuplicateZKPProofs(verifiedProofs));
         }
       } catch (err) {
         console.error("Error loading ZKP proofs:", err);
@@ -93,7 +94,7 @@ export default function VCAndZKP() {
         const verifiedProofs = proofs.filter(
           (p) => p.verifyResult?.verified === true
         );
-        setVerifiedZKPProofs(verifiedProofs);
+        setVerifiedZKPProofs(removeDuplicateZKPProofs(verifiedProofs));
       }
     };
 

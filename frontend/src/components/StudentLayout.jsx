@@ -1,9 +1,11 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import WalletConnect from "./WalletConnect";
+import { useWalletConnect } from "../hooks/useWalletConnect";
 
 export default function StudentLayout({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { account, isConnecting, connectWallet, error } = useWalletConnect();
 
   const handleLogout = () => {
     // ローカルストレージをクリア（必要に応じて）
@@ -11,6 +13,56 @@ export default function StudentLayout({ children }) {
     navigate("/");
   };
 
+  // ウォレットが接続されていない場合、接続を促す画面を表示
+  if (!account && !isConnecting) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl p-10 text-center">
+          <div className="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-blue-400 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
+            <span className="text-5xl">👤</span>
+          </div>
+          <h2 className="text-3xl font-bold text-gray-900 mb-4">
+            ウォレット接続が必要です
+          </h2>
+          <p className="text-gray-600 mb-8">
+            個人ログインを続けるには、MetaMaskウォレットを接続してください。
+          </p>
+          <button
+            onClick={connectWallet}
+            disabled={isConnecting}
+            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isConnecting ? "接続中..." : "ウォレット接続"}
+          </button>
+          {error && (
+            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+              {error}
+            </div>
+          )}
+          <button
+            onClick={handleLogout}
+            className="mt-4 text-gray-500 hover:text-gray-700 text-sm"
+          >
+            戻る
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // 接続中の場合
+  if (isConnecting) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">ウォレット接続中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ウォレット接続済みの場合、通常のレイアウトを表示
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       <nav className="bg-white/80 backdrop-blur-md shadow-lg border-b border-gray-200">

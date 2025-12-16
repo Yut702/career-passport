@@ -11,36 +11,13 @@ cd "$(dirname "$0")/.."
 RPC_URL=${RPC_URL:-"http://localhost:8545"}
 PRIVATE_KEY=${PRIVATE_KEY:-"0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"}
 CHAIN_ID=${CHAIN_ID:-31337}
-STATE_FILE="anvil-state.json"
 
 echo "=== コントラクトデプロイ開始 ==="
 echo "RPC URL: $RPC_URL"
 echo "Chain ID: $CHAIN_ID"
 echo ""
-
-# Anvilの状態ファイルの確認
-if [ -f "$STATE_FILE" ]; then
-  echo "ℹ️  既存のAnvil状態ファイルが検出されました。"
-  echo "   ファイル: $STATE_FILE"
-  echo "   ファイルサイズ: $(du -h "$STATE_FILE" | cut -f1)"
-  echo ""
-  echo "   既存の状態がある場合、コントラクトを再デプロイすると："
-  echo "   - 既存のコントラクトアドレスが上書きされる可能性があります"
-  echo "   - 以前発行したSFT/NFTは保持されます（Anvilの状態が保持されている場合）"
-  echo ""
-  if [ -t 0 ]; then
-    # インタラクティブモードの場合のみ確認
-    read -p "続行しますか？ (y/N): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-      echo "デプロイをキャンセルしました。"
-      exit 0
-    fi
-  else
-    echo "   非インタラクティブモードのため、続行します..."
-  fi
-  echo ""
-fi
+echo "ℹ️  毎回新しい状態でデプロイします（状態は保持されません）"
+echo ""
 
 # 1. NonFungibleCareerNFT をデプロイ
 echo "1. NonFungibleCareerNFT をデプロイ中..."

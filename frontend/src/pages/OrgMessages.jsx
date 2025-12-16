@@ -100,18 +100,29 @@ export default function OrgMessages() {
 
     const loadConversations = async () => {
       try {
+        console.log("[OrgMessages] candidateId:", candidateId);
+        console.log("[OrgMessages] account:", account);
+
         const response = await messageAPI.getConversations(account);
         if (response.ok && response.conversations) {
           setConversations(response.conversations);
 
           // 候補者IDが指定されている場合、その候補者の会話を選択
           if (candidateId) {
+            console.log(
+              "[OrgMessages] candidateIdが指定されています:",
+              candidateId
+            );
             const candidate = response.conversations.find(
               (conv) =>
                 conv.otherAddress.toLowerCase() === candidateId.toLowerCase()
             );
             if (candidate) {
               // 既存の会話がある場合
+              console.log(
+                "[OrgMessages] 既存の会話が見つかりました:",
+                candidate
+              );
               setSelectedCandidate({
                 walletAddress: candidate.otherAddress,
                 conversationId: candidate.conversationId,
@@ -119,6 +130,10 @@ export default function OrgMessages() {
               });
             } else {
               // 既存の会話がない場合、新規会話として候補者アドレスを設定
+              console.log(
+                "[OrgMessages] 既存の会話がないため、新規会話として設定:",
+                candidateId
+              );
               setSelectedCandidate({
                 walletAddress: candidateId,
                 conversationId: null, // 最初のメッセージ送信時に生成される
@@ -137,6 +152,10 @@ export default function OrgMessages() {
         } else if (candidateId) {
           // 会話一覧が取得できなかったが、candidateIdが指定されている場合
           // 新規会話として候補者アドレスを設定
+          console.log(
+            "[OrgMessages] 会話一覧が取得できませんでしたが、candidateIdが指定されているため新規会話として設定:",
+            candidateId
+          );
           setSelectedCandidate({
             walletAddress: candidateId,
             conversationId: null,
@@ -148,6 +167,10 @@ export default function OrgMessages() {
         setError("会話一覧の取得に失敗しました");
         // エラーでもcandidateIdが指定されている場合は新規会話として設定
         if (candidateId) {
+          console.log(
+            "[OrgMessages] エラーが発生しましたが、candidateIdが指定されているため新規会話として設定:",
+            candidateId
+          );
           setSelectedCandidate({
             walletAddress: candidateId,
             conversationId: null,

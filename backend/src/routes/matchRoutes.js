@@ -42,6 +42,7 @@ router.post("/", async (req, res) => {
       return res.status(409).json({ error: "Match already exists" });
     }
 
+    // ウォレットアドレスを送信してマッチングを作成
     const match = await createMatch({
       studentAddress,
       orgAddress,
@@ -50,20 +51,18 @@ router.post("/", async (req, res) => {
 
     // マッチング作成成功後、自動的に企業から学生への初期メッセージを送信
     // これにより、双方でメッセージタブでやり取りできるようになる
+    // メッセージの宛先は、マッチングに紐づくstudentAddressを使用
     try {
       const initialMessage = `マッチングが成立しました。よろしくお願いします。`;
       await createMessage({
         senderAddress: orgAddress, // 企業側から送信
-        receiverAddress: studentAddress, // 学生側へ送信
+        receiverAddress: studentAddress, // 学生側へ送信（マッチングに紐づくウォレットアドレス）
         content: initialMessage,
       });
-      console.log(
-        `✅ マッチング作成時の自動メッセージ送信成功: ${orgAddress} -> ${studentAddress}`
-      );
     } catch (messageError) {
       // メッセージ送信に失敗してもマッチング作成は成功とする
       console.error(
-        "⚠️ マッチング作成時の自動メッセージ送信に失敗しました:",
+        "Error sending initial message after match creation:",
         messageError
       );
     }
@@ -169,8 +168,14 @@ router.get("/search/student", async (req, res) => {
 
     // 既存のマッチングを取得（重複を避けるため）
     const existingMatches = await getMatchesByStudent(walletAddress);
+
+    // 既存のマッチングがログインユーザーのものか確認
+    const validMatches = existingMatches.filter(
+      (m) => m.studentAddress?.toLowerCase() === walletAddress?.toLowerCase()
+    );
+
     const matchedOrgAddresses = new Set(
-      existingMatches
+      validMatches
         .filter((m) => m.status === "active")
         .map((m) => m.orgAddress.toLowerCase())
     );

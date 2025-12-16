@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useWalletConnect } from "../hooks/useWalletConnect";
 import { eventAPI } from "../lib/api";
-import { formatOrganization } from "../lib/utils";
+import { formatOrganization, removeDuplicateZKPProofs } from "../lib/utils";
 import { storage } from "../lib/storage";
 
 export default function StudentEventApply() {
@@ -89,7 +89,8 @@ export default function StudentEventApply() {
     const verifiedProofs = proofs.filter(
       (p) => p.verifyResult?.verified === true
     );
-    setAvailableProofs(verifiedProofs);
+    // 重複を除去
+    setAvailableProofs(removeDuplicateZKPProofs(verifiedProofs));
   }, []);
 
   const handleChange = (e) => {

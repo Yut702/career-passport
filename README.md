@@ -146,24 +146,13 @@ AWS_ACCESS_KEY_ID=dummy
 AWS_SECRET_ACCESS_KEY=dummy
 EOF
 
-# DynamoDB Local (Docker) を起動
-npm run dynamodb:up
-
-# 数秒待ってから、DynamoDB テーブルを作成
-sleep 5
-npm run create-api-tables
-
-# 企業テーブルとNFT申請テーブルも作成
-npm run create-companies-table
-
-# PoC用企業データを初期化（オプション）
-npm run init-poc-companies
-
-# バックエンドAPIサーバーを起動
-npm run dev
+# バックエンドを起動（データベースをリフレッシュして起動）
+bash scripts/start-backend.sh
 ```
 
 **確認**: ターミナルに `Backend running on 3000` と表示されれば成功です。
+
+**注意**: このスクリプトは毎回 DynamoDB Local をリフレッシュ（データを削除）してから起動します。
 
 #### ステップ 5: ローカルブロックチェーン（Anvil）の起動とコントラクトのデプロイ
 
@@ -172,15 +161,8 @@ npm run dev
 ```bash
 cd contracts
 
-# Anvil を状態保存付きで起動（推奨）
+# Anvil を起動（毎回新しい状態で起動）
 bash scripts/start-anvil.sh
-```
-
-または、手動で起動する場合：
-
-```bash
-cd contracts
-anvil --state anvil-state.json
 ```
 
 **確認**: `Listening on 127.0.0.1:8545` と表示されれば成功です。
@@ -190,7 +172,7 @@ anvil --state anvil-state.json
 ```bash
 cd contracts
 
-# コントラクトをデプロイ（初回のみ）
+# コントラクトをデプロイ（毎回実行が必要）
 bash scripts/deploy-all.sh
 ```
 
@@ -206,9 +188,8 @@ bash scripts/deploy-all.sh
 
 **重要**:
 
-- 初回のみコントラクトをデプロイする必要があります
-- `--state` オプションを使用しているため、Anvil を再起動しても状態が保持されます
-- 状態をリセットしたい場合は `bash scripts/reset-anvil.sh` を実行してください
+- **毎回コントラクトをデプロイする必要があります**（Anvil は毎回新しい状態で起動します）
+- Anvil の状態は保持されません（毎回リフレッシュされます）
 
 #### ステップ 6: ウォレット接続の設定
 
@@ -273,8 +254,8 @@ npm run dev
 
 - ✅ **Foundry**: `forge --version`、`anvil --version` が正常に動作
 - ✅ **コントラクト**: `forge build` が成功し、`contracts/lib/` に依存関係がインストールされている
-- ✅ **バックエンド**: `.env` ファイルが作成され、`npm run create-api-tables` でテーブルが作成済み
-- ✅ **Anvil**: 状態保存付きで起動し、`contracts/anvil-state.json` が作成されている
+- ✅ **バックエンド**: `.env` ファイルが作成され、テーブルが作成済み
+- ✅ **Anvil**: 起動し、`Listening on 127.0.0.1:8545` と表示されている
 - ✅ **コントラクト**: `contracts/deployed.json` にアドレスが記録されている
 - ✅ **フロントエンド**: `frontend/.env.local` ファイルが作成されている
 - ✅ **MetaMask**: ローカルネットワーク（Anvil）が追加されている
@@ -286,26 +267,45 @@ npm run dev
 
 PC を再起動した後や、一度セットアップを完了した環境でアプリを起動する場合の手順です。
 
+**重要**: このアプリケーションは**毎回リフレッシュ**する前提で動作します。Anvil と DynamoDB Local のデータは保持されません。
+
 #### 前提条件
 
 - ✅ 初期セットアップが完了していること
-- ✅ コントラクトがデプロイ済みであること（初回のみ必要）
+
+#### 起動前の準備
+
+**⚠️ 重要**: Anvil と DynamoDB Local が毎回リフレッシュされるため、フロントエンドのローカルストレージもクリアすることを推奨します。
+
+**ローカルストレージをクリアする方法**:
+
+**方法 1: ブラウザの開発者ツールを使用（推奨）**
+
+1. ブラウザで開発者ツールを開く（F12）
+2. Chrome/Edge: Application → Local Storage → `http://localhost:5173` → すべて削除
+3. Firefox: Storage → Local Storage → `http://localhost:5173` → すべて削除
+
+**方法 2: ブラウザのコンソールで実行**
+
+1. ブラウザで開発者ツールを開く（F12）
+2. Console タブで以下を実行：
+
+```javascript
+localStorage.clear();
+location.reload();
+```
 
 #### 起動手順
 
-以下の順序で **3〜4 つのターミナル**を開いて、それぞれのサービスを起動します：
+以下の順序で **4 つのターミナル**を開いて、それぞれのサービスを起動します：
 
 ##### ターミナル 1: DynamoDB Local とバックエンド API
 
 ```bash
 cd backend
 
-# DynamoDB Local を起動
-npm run dynamodb:up
-
-# 数秒待ってから、バックエンドAPIサーバーを起動
-sleep 3
-npm run dev
+# バックエンドを起動（データベースをリフレッシュして起動）
+bash scripts/start-backend.sh
 ```
 
 **確認**:
@@ -315,12 +315,10 @@ npm run dev
 
 **注意**:
 
-- DynamoDB Local のデータは Docker ボリュームに保存されるため、コンテナを削除しない限りデータは保持されます
-- テーブルは既に作成されているため、再作成の必要はありません
+- **毎回 DynamoDB Local をリフレッシュ**（データを削除）してから起動します
+- テーブルは自動的に再作成されます
 
 ##### ターミナル 2: ローカルブロックチェーン（Anvil）
-
-**推奨方法（状態を保存）**:
 
 ```bash
 cd contracts
@@ -329,17 +327,11 @@ bash scripts/start-anvil.sh
 
 **確認**: `Listening on 127.0.0.1:8545` と表示されれば成功です。
 
-**状態管理について**:
+**注意**: **毎回新しい状態で起動**します（状態は保持されません）。
 
-- `--state` オプションを使用しているため、Anvil を再起動しても以前の状態（コントラクト、トランザクション、残高）が自動的に復元されます
-- 状態ファイル（`anvil-state.json`）が存在する場合、以前の状態が復元されます
-- 状態ファイルが存在しない場合（初回起動時など）、新しい状態で開始されます
+##### ターミナル 3: コントラクトのデプロイ
 
-##### ターミナル 3: コントラクトのデプロイ（初回のみ、または状態リセット時）
-
-**⚠️ このステップは初回のみ、または Anvil の状態をリセットした場合のみ必要です**
-
-状態ファイル（`anvil-state.json`）が存在し、以前の状態が復元されている場合は、このステップをスキップしてください。
+**⚠️ 毎回実行が必要です**
 
 ```bash
 cd contracts
@@ -351,10 +343,7 @@ bash scripts/deploy-all.sh
 - `frontend/.env.local` ファイルが存在することを確認
 - デプロイスクリプトが正常に完了したことを確認
 
-**注意**:
-
-- 状態ファイルが存在する場合、デプロイスクリプトは警告を表示します
-- 既存のコントラクトアドレスが上書きされる可能性があります
+**注意**: Anvil は毎回新しい状態で起動するため、**毎回コントラクトをデプロイする必要があります**。
 
 ##### ターミナル 4: フロントエンド
 
@@ -365,6 +354,8 @@ npm run dev
 
 **確認**: `Local: http://localhost:5173` と表示されれば成功です。
 
+**注意**: ブラウザでアプリを開く前に、ローカルストレージをクリアすることを推奨します（上記の「起動前の準備」を参照）。
+
 #### 起動確認チェックリスト
 
 すべてのサービスが正常に起動しているか確認してください：
@@ -373,63 +364,13 @@ npm run dev
 - ✅ **バックエンド API**: `http://localhost:3000` にアクセス可能（またはターミナルに `Backend running on 3000` と表示）
 - ✅ **Anvil**: ターミナルに `Listening on 127.0.0.1:8545` と表示
 - ✅ **フロントエンド**: `http://localhost:5173` にアクセス可能
-- ✅ **コントラクト**: `contracts/deployed.json` にアドレスが記録されている（初回デプロイ後）
-
-#### よくある質問
-
-**Q: 毎回コントラクトをデプロイする必要がありますか？**
-
-A: いいえ。`--state` オプションを使用しているため、Anvil を再起動しても状態が保持されます。初回のみ、または状態をリセットした場合のみデプロイが必要です。
-
-**Q: 状態をリセットしたい場合はどうすればいいですか？**
-
-A: `cd contracts && bash scripts/reset-anvil.sh` を実行してください。その後、コントラクトを再デプロイする必要があります。
-
-**Q: DynamoDB のデータが消えた場合は？**
-
-A: `docker compose down -v` を実行していない限り、データは保持されます。データをリセットしたい場合は、`cd backend && docker compose down -v` を実行してください。
+- ✅ **コントラクト**: `contracts/deployed.json` にアドレスが記録されている
 
 ---
 
 ### リセット方法
 
-開発中にデータや状態をリセットしたい場合の手順です。
-
-#### Anvil（ブロックチェーン）の状態をリセット
-
-```bash
-cd contracts
-
-# Anvilの状態をリセット
-bash scripts/reset-anvil.sh
-
-# コントラクトを再デプロイ
-bash scripts/deploy-all.sh
-```
-
-**注意**: この操作により、以前のブロックチェーンの状態（コントラクト、トランザクション、残高）がすべて失われます。
-
-#### DynamoDB のデータをリセット
-
-```bash
-cd backend
-
-# DynamoDB Local を停止し、ボリュームも削除
-docker compose down -v
-
-# DynamoDB Local を再起動
-npm run dynamodb:up
-
-# テーブルを再作成
-sleep 5
-npm run create-api-tables
-npm run create-companies-table
-
-# PoC用企業データを再初期化（オプション）
-npm run init-poc-companies
-```
-
-**注意**: この操作により、DynamoDB に保存されているすべてのデータ（イベント、応募、メッセージ、マッチングなど）が失われます。
+**注意**: このアプリケーションは**毎回リフレッシュ**する前提で動作するため、通常はリセット操作は不要です。起動時に自動的にリフレッシュされます。
 
 #### フロントエンドのローカルストレージをリセット
 
@@ -445,25 +386,163 @@ localStorage.clear();
 location.reload();
 ```
 
-#### 完全リセット（すべてのデータをリセット）
+#### 手動でリセットする場合
+
+通常は不要ですが、手動でリセットしたい場合：
 
 ```bash
-# 1. Anvilの状態をリセット
+# 1. Anvilを停止（Ctrl+C）して再起動
 cd contracts
-bash scripts/reset-anvil.sh
+bash scripts/start-anvil.sh
+
+# 2. コントラクトを再デプロイ
 bash scripts/deploy-all.sh
 
-# 2. DynamoDBのデータをリセット
+# 3. バックエンドを再起動（自動的にリフレッシュされます）
 cd ../backend
-docker compose down -v
-npm run dynamodb:up
-sleep 5
-npm run create-api-tables
-npm run create-companies-table
-npm run init-poc-companies
-
-# 3. フロントエンドのローカルストレージはブラウザでクリア
+bash scripts/start-backend.sh
 ```
+
+---
+
+## Anvil スクリプトの説明
+
+このプロジェクトでは、ローカルブロックチェーン（Anvil）を管理するためのスクリプトを提供しています。これらのスクリプトは `contracts/scripts/` ディレクトリに配置されています。
+
+**重要**: このアプリケーションは**毎回リフレッシュ**する前提で動作します。Anvil の状態は保持されません。
+
+### スクリプトの使い分け
+
+| シナリオ         | 使用するスクリプト                 |
+| ---------------- | ---------------------------------- |
+| 初回セットアップ | `start-anvil.sh` → `deploy-all.sh` |
+| 日常的な起動     | `start-anvil.sh` → `deploy-all.sh` |
+| バックエンド起動 | `backend/scripts/start-backend.sh` |
+
+### `scripts/start-anvil.sh`
+
+**目的**: Anvil を起動するスクリプト（毎回新しい状態で起動）
+
+**機能**:
+
+- Anvil をローカルホスト（`127.0.0.1:8545`）で起動
+- **毎回新しい状態で起動**します（状態は保持されません）
+
+**使用方法**:
+
+```bash
+cd contracts
+bash scripts/start-anvil.sh
+```
+
+**重要なポイント**:
+
+- **状態は保持されません**（毎回リフレッシュされます）
+- **毎回コントラクトをデプロイする必要があります**
+
+**設定**:
+
+- RPC URL: `http://127.0.0.1:8545`
+- Chain ID: `31337`
+- Port: `8545`
+
+### `scripts/deploy-all.sh`
+
+**目的**: すべてのスマートコントラクトを Anvil にデプロイし、必要な設定を自動化するスクリプト
+
+**機能**:
+
+1. **コントラクトのデプロイ**:
+
+   - `NonFungibleCareerNFT` コントラクトをデプロイ
+   - `StampManager` と `CareerStampSFT` コントラクトをデプロイ
+
+2. **デプロイ済みアドレスの保存**:
+
+   - デプロイされたコントラクトのアドレスを `deployed.json` に自動保存
+
+3. **コントラクト間の設定**:
+
+   - NFT コントラクトの所有者を StampManager に設定
+   - StampManager に NFT コントラクトのアドレスを設定
+
+4. **環境変数ファイルの生成**:
+
+   - フロントエンドで使用する環境変数ファイル（`frontend/.env.local`）を自動生成
+
+5. **バックエンドデータベーステーブルの作成**（オプション）:
+   - DynamoDB Local が起動している場合、必要なテーブルを作成
+
+**使用方法**:
+
+```bash
+cd contracts
+bash scripts/deploy-all.sh
+```
+
+**重要なポイント**:
+
+- **毎回実行する必要があります**（Anvil は毎回新しい状態で起動します）
+- 既存のコントラクトアドレスが上書きされます（これは正常な動作です）
+
+**デフォルト設定**:
+
+- RPC URL: `http://localhost:8545`
+- Chain ID: `31337`
+- プライベートキー: Anvil のデフォルトアカウント（`0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80`）
+
+### `backend/scripts/start-backend.sh`
+
+**目的**: バックエンド API サーバーを起動するスクリプト（DynamoDB Local をリフレッシュして起動）
+
+**機能**:
+
+1. **DynamoDB Local のリフレッシュ**:
+
+   - 既存の DynamoDB Local を停止してボリュームを削除
+   - DynamoDB Local を再起動
+
+2. **テーブルの作成**:
+
+   - 必要な DynamoDB テーブルを自動作成
+
+3. **PoC 用データの初期化**:
+
+   - PoC 用企業データを自動初期化
+
+4. **バックエンド API サーバーの起動**:
+   - Express.js サーバーを起動
+
+**使用方法**:
+
+```bash
+cd backend
+bash scripts/start-backend.sh
+```
+
+**重要なポイント**:
+
+- **毎回 DynamoDB Local をリフレッシュ**（データを削除）してから起動します
+- テーブルは自動的に再作成されます
+
+### トラブルシューティング
+
+**Q: ポート 8545 が既に使用されているエラーが発生する**
+
+A: 既に Anvil が起動している可能性があります。以下のコマンドでプロセスを確認し、必要に応じて停止してください：
+
+```bash
+lsof -i :8545
+kill -9 <PID>
+```
+
+**Q: デプロイ済みのコントラクトアドレスが変わってしまった**
+
+A: これは正常な動作です。Anvil は毎回新しい状態で起動するため、コントラクトアドレスも毎回変わります。`deploy-all.sh`を実行すると、`deployed.json`と`frontend/.env.local`が自動的に更新されます。
+
+**Q: 毎回コントラクトをデプロイする必要があるのはなぜですか？**
+
+A: このアプリケーションは毎回リフレッシュする前提で動作します。Anvil の状態は保持されないため、毎回コントラクトをデプロイする必要があります。
 
 ---
 
@@ -1067,31 +1146,7 @@ CareerStampSFT (ERC1155)
 
 ### 技術スタック
 
-**フロントエンド**:
-
-- React 19 + Vite
-- Tailwind CSS
-- React Router
-- Ethers.js v6
-
-**バックエンド**:
-
-- Node.js + Express.js
-- AWS SDK (DynamoDB)
-- DynamoDB Local (Docker)
-
-**ブロックチェーン**:
-
-- Foundry
-- Solidity 0.8.20
-- Anvil（ローカルブロックチェーン）
-- OpenZeppelin
-
-**開発ツール**:
-
-- MetaMask
-- Git
-- Docker
+詳細は[技術仕様](#技術仕様)セクションを参照してください。
 
 ---
 
@@ -1136,24 +1191,56 @@ curl http://localhost:8545
 
 ```bash
 cd backend
+
+# バックエンド起動スクリプトを使用（推奨：毎回リセットして起動）
+bash scripts/start-backend.sh
+```
+
+または、手動で再起動する場合：
+
+```bash
+cd backend
 # Dockerが起動しているか確認
 docker ps
 
+# DynamoDB Localを停止してボリュームを削除（データをリセット）
+docker compose down -v
+
 # DynamoDB Localを再起動
-npm run dynamodb:down
 npm run dynamodb:up
 
-# ログを確認
-npm run dynamodb:logs
+# 数秒待ってからテーブルを作成
+sleep 5
+npm run create-api-tables
+npm run create-companies-table
+npm run init-poc-companies
+
+# バックエンドAPIサーバーを起動
+npm run dev
 ```
 
 ### バックエンド API に接続できない場合
 
 ```bash
 cd backend
-# テーブルが作成されているか確認
+
+# バックエンド起動スクリプトを使用（推奨：毎回リセットして起動）
+bash scripts/start-backend.sh
+```
+
+または、手動で再起動する場合：
+
+```bash
+cd backend
+# DynamoDB Localをリセット
+docker compose down -v
+npm run dynamodb:up
+sleep 5
+
+# テーブルを作成
 npm run create-api-tables
 npm run create-companies-table
+npm run init-poc-companies
 
 # サーバーを再起動
 npm run dev
@@ -1177,6 +1264,63 @@ cat .env.local
 - 学生側から「マッチングを作成」ボタンを押すか、企業側から「マッチングを作成」ボタンを押してください
 - コンソールログ（`[OrgMatchedCandidates]`で始まるログ）を確認して、原因を特定してください
 
+### NFT やスタンプが表示されない場合
+
+**注意**: このアプリケーションは毎回リフレッシュする前提で動作します。Anvil を再起動すると、以前発行した NFT やスタンプは失われます。
+
+#### 原因 1: コントラクトがデプロイされていない
+
+**問題**: Anvil は起動しているが、コントラクトがデプロイされていない。
+
+**対処法**:
+
+```bash
+cd contracts
+bash scripts/deploy-all.sh
+```
+
+#### 原因 2: コントラクトアドレスの不一致
+
+**問題**: `deployed.json`と`frontend/.env.local`のアドレスが一致していない。
+
+**対処法**:
+
+```bash
+cd contracts
+bash scripts/generate-env.sh
+# フロントエンドを再起動
+```
+
+#### 原因 3: ウォレットアドレスの不一致
+
+**問題**: 別のウォレットアドレスで発行したデータを参照している。
+
+**対処法**:
+
+1. MetaMask で正しいアカウントが選択されているか確認
+2. Anvil 起動時に表示されるプライベートキーと、MetaMask でインポートしたアカウントが一致しているか確認
+
+#### 推奨される診断手順
+
+1. **コントラクトアドレスの整合性を確認**:
+
+   ```bash
+   cd contracts
+   cat deployed.json
+   cat ../frontend/.env.local
+   ```
+
+2. **フロントエンドのコンソールログを確認**:
+
+   - ブラウザの開発者ツール（F12）を開く
+   - Console タブでエラーメッセージを確認
+   - `[Home]`や`[MyPage]`で始まるログを確認
+
+3. **Anvil のログを確認**:
+   - Anvil を起動しているターミナルでエラーメッセージを確認
+
 ---
 
-**最終更新**: 2025 年 12 月 14 日（プロジェクト完了）
+---
+
+**最終更新**: 2025 年 12 月 17 日
