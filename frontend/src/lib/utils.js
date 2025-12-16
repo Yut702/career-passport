@@ -44,7 +44,7 @@ export function formatDate(date, locale = "ja-JP") {
   try {
     const dateObj = typeof date === "string" ? new Date(date) : date;
     return dateObj.toLocaleDateString(locale);
-  } catch (error) {
+  } catch {
     return String(date);
   }
 }
@@ -61,7 +61,49 @@ export function formatDateTime(date, locale = "ja-JP") {
   try {
     const dateObj = typeof date === "string" ? new Date(date) : date;
     return dateObj.toLocaleString(locale);
-  } catch (error) {
+  } catch {
     return String(date);
   }
+}
+
+/**
+ * ZKP証明の重複を除去する関数
+ * proofHash、proofId、idの順で重複チェックを行う
+ *
+ * @param {Array} proofs - ZKP証明の配列
+ * @returns {Array} 重複が除去されたZKP証明の配列
+ */
+export function removeDuplicateZKPProofs(proofs) {
+  if (!Array.isArray(proofs)) return [];
+
+  const uniqueProofs = [];
+  const seenHashes = new Set();
+  const seenIds = new Set();
+
+  for (const proof of proofs) {
+    // proofHashがある場合はproofHashで重複チェック（優先）
+    if (proof.proofHash) {
+      if (!seenHashes.has(proof.proofHash)) {
+        seenHashes.add(proof.proofHash);
+        uniqueProofs.push(proof);
+      }
+    } else if (proof.proofId) {
+      // proofIdがある場合はproofIdで重複チェック（データベースから取得した場合）
+      if (!seenIds.has(proof.proofId)) {
+        seenIds.add(proof.proofId);
+        uniqueProofs.push(proof);
+      }
+    } else if (proof.id) {
+      // idがある場合はidで重複チェック（ローカルストレージから取得した場合）
+      if (!seenIds.has(proof.id)) {
+        seenIds.add(proof.id);
+        uniqueProofs.push(proof);
+      }
+    } else {
+      // proofHashもidもない場合はそのまま追加（念のため）
+      uniqueProofs.push(proof);
+    }
+  }
+
+  return uniqueProofs;
 }

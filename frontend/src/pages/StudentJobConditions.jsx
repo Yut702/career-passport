@@ -4,6 +4,7 @@ import { useWalletConnect } from "../hooks/useWalletConnect";
 import { jobConditionAPI, zkpProofAPI } from "../lib/api";
 import { jobCategories, industries } from "../data/jobCategories";
 import { storage } from "../lib/storage";
+import { removeDuplicateZKPProofs } from "../lib/utils";
 
 // デフォルト条件
 const getDefaultConditions = () => ({
@@ -38,7 +39,7 @@ export default function StudentJobConditions() {
         const verifiedProofs = proofs.filter(
           (p) => p.verifyResult?.verified === true
         );
-        setAvailableZKPProofs(verifiedProofs);
+        setAvailableZKPProofs(removeDuplicateZKPProofs(verifiedProofs));
         return;
       }
 
@@ -46,14 +47,14 @@ export default function StudentJobConditions() {
         // データベースから公開情報を取得
         const response = await zkpProofAPI.getZKPProofs(account);
         if (response.ok && response.proofs) {
-          setAvailableZKPProofs(response.proofs);
+          setAvailableZKPProofs(removeDuplicateZKPProofs(response.proofs));
         } else {
           // フォールバック: ローカルストレージから読み込む
           const proofs = storage.getZKPProofs();
           const verifiedProofs = proofs.filter(
             (p) => p.verifyResult?.verified === true
           );
-          setAvailableZKPProofs(verifiedProofs);
+          setAvailableZKPProofs(removeDuplicateZKPProofs(verifiedProofs));
         }
       } catch (err) {
         console.error("Error loading ZKP proofs:", err);
@@ -62,7 +63,7 @@ export default function StudentJobConditions() {
         const verifiedProofs = proofs.filter(
           (p) => p.verifyResult?.verified === true
         );
-        setAvailableZKPProofs(verifiedProofs);
+        setAvailableZKPProofs(removeDuplicateZKPProofs(verifiedProofs));
       }
     };
 
