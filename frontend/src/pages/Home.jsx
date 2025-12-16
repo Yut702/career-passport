@@ -604,27 +604,51 @@ export default function Home() {
   }, [stampManagerContract, nftContract, account, loadDataFromStorage]);
 
   /**
+   * アカウント変更時またはウォレット切断時にデータをリセット
+   *
+   * アカウントが変更されたとき、またはウォレットが切断されたときに、
+   * 既存のデータをクリアして新しいアカウントのデータを読み込む準備をします。
+   */
+  useEffect(() => {
+    if (isConnected && account) {
+      // アカウントが変更されたときは、データをリセット
+      setStamps([]);
+      setNfts([]);
+      setNftGoals([]);
+      prevStampsRef.current = [];
+      setLoading(true);
+    } else if (!isConnected || !account) {
+      // ウォレット切断時は、データをリセットしてローディング状態を解除
+      setStamps([]);
+      setNfts([]);
+      setNftGoals([]);
+      prevStampsRef.current = [];
+      setLoading(false); // ウォレット切断時はローディングを解除
+    }
+  }, [isConnected, account]);
+
+  /**
    * ウォレット接続状態とコントラクト準備状態が変更されたときにデータを読み込む
    *
    * ウォレットが接続されていて、コントラクトが準備完了している場合、
    * ブロックチェーンからデータを読み込みます。
-   * ウォレットが接続されていない場合は、ローカルストレージから読み込みます。
+   * ウォレットが切断された場合は、データをリセットしたままにします。
    */
   useEffect(() => {
+    // ウォレットが切断されている場合は何もしない（データは既にリセット済み）
+    if (!isConnected || !account) {
+      return;
+    }
+
     // コントラクトが準備できていない場合は待機（エラーを表示しない）
     if (!isReady) {
       setLoading(true);
       return;
     }
 
-    if (isConnected && account) {
-      // ブロックチェーンから読み込む
-      loadData();
-    } else {
-      // ウォレット未接続時はローカルストレージから読み込む（フォールバック）
-      loadDataFromStorage();
-    }
-  }, [isConnected, isReady, account, loadData, loadDataFromStorage]);
+    // ブロックチェーンから読み込む
+    loadData();
+  }, [isConnected, isReady, account, loadData]);
 
   /**
    * 最近のスタンプを取得
